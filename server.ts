@@ -24,17 +24,27 @@ dotenv.config();
 
 // Fallback to .env.example if key environment variables are missing
 if (!process.env.MONGODB_URI || !process.env.GEMINI_API_KEY) {
-  const envExamplePath = path.join(process.cwd(), '.env.example');
-  if (fs.existsSync(envExamplePath)) {
-    try {
-      const exampleConfig = dotenv.parse(fs.readFileSync(envExamplePath));
-      for (const k in exampleConfig) {
-        if (!process.env[k]) {
-          process.env[k] = exampleConfig[k];
+  const fallbackPaths = [
+    path.join(process.cwd(), '.env.example'),
+    path.join(__dirname, '..', '.env.example'),
+    path.join(__dirname, '.env.example'),
+    path.join(__dirname, '../..', '.env.example'),
+  ];
+  
+  for (const p of fallbackPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        console.log(`[Server] Loading environment fallback from ${p}`);
+        const exampleConfig = dotenv.parse(fs.readFileSync(p));
+        for (const k in exampleConfig) {
+          if (!process.env[k]) {
+            process.env[k] = exampleConfig[k];
+          }
         }
+        break;
+      } catch (e) {
+        console.warn(`[Server] Failed to parse fallback from ${p}:`, e);
       }
-    } catch (e) {
-      console.warn('[Server] Failed to parse .env.example fallback:', e);
     }
   }
 }

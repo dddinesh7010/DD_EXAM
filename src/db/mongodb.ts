@@ -1,6 +1,37 @@
 import { MongoClient, Db, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+// Initialize dotenv
+dotenv.config();
+
+// Fallback to .env.example if key environment variables are missing
+if (!process.env.MONGODB_URI) {
+  const fallbackPaths = [
+    path.join(process.cwd(), '.env.example'),
+    path.join(__dirname, '..', '.env.example'),
+    path.join(__dirname, '.env.example'),
+    path.join(__dirname, '../..', '.env.example'),
+  ];
+  
+  for (const p of fallbackPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        console.log(`[MongoDB DB] Loading environment fallback from ${p}`);
+        const exampleConfig = dotenv.parse(fs.readFileSync(p));
+        for (const k in exampleConfig) {
+          if (!process.env[k]) {
+            process.env[k] = exampleConfig[k];
+          }
+        }
+        break;
+      } catch (e) {
+        console.warn(`[MongoDB DB] Failed to parse fallback from ${p}:`, e);
+      }
+    }
+  }
+}
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
