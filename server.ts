@@ -3,6 +3,7 @@ import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { fallbackEnv } from './src/db/env-fallback';
 import { extractQuestionsFromText } from './src/ai/ExtractQuestions';
 import { generateOfflineQuestions } from './src/ai/OfflineGenerator';
 import { cleanQuestionText } from './src/utils/pdfCleaner';
@@ -22,7 +23,18 @@ import {
 
 dotenv.config();
 
-// Fallback to .env.example if key environment variables are missing
+// Fallback to compiled build-time fallback or .env.example if key environment variables are missing
+if (!process.env.MONGODB_URI) {
+  if (fallbackEnv && fallbackEnv.MONGODB_URI) {
+    process.env.MONGODB_URI = fallbackEnv.MONGODB_URI;
+  }
+}
+if (!process.env.GEMINI_API_KEY) {
+  if (fallbackEnv && fallbackEnv.GEMINI_API_KEY) {
+    process.env.GEMINI_API_KEY = fallbackEnv.GEMINI_API_KEY;
+  }
+}
+
 if (!process.env.MONGODB_URI || !process.env.GEMINI_API_KEY) {
   const fallbackPaths = [
     path.join(process.cwd(), '.env.example'),

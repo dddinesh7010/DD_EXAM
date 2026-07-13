@@ -2,11 +2,23 @@ import { MongoClient, Db, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { fallbackEnv } from './env-fallback';
 
 // Initialize dotenv
 dotenv.config();
 
-// Fallback to .env.example if key environment variables are missing
+// Fallback to compiled build-time fallback or .env.example if key environment variables are missing
+if (!process.env.MONGODB_URI) {
+  if (fallbackEnv && fallbackEnv.MONGODB_URI) {
+    process.env.MONGODB_URI = fallbackEnv.MONGODB_URI;
+  }
+}
+if (!process.env.GEMINI_API_KEY) {
+  if (fallbackEnv && fallbackEnv.GEMINI_API_KEY) {
+    process.env.GEMINI_API_KEY = fallbackEnv.GEMINI_API_KEY;
+  }
+}
+
 if (!process.env.MONGODB_URI) {
   const fallbackPaths = [
     path.join(process.cwd(), '.env.example'),
