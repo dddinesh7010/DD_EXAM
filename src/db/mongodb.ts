@@ -73,7 +73,15 @@ export interface DbStatus {
  * Gracefully returns null if MONGODB_URI is not set or connection fails.
  */
 export async function getDb(): Promise<Db | null> {
-  const uri = process.env.MONGODB_URI;
+  let uri = process.env.MONGODB_URI;
+  if (uri) {
+    uri = uri.trim();
+    if (uri.startsWith('"') && uri.endsWith('"')) {
+      uri = uri.slice(1, -1);
+    } else if (uri.startsWith("'") && uri.endsWith("'")) {
+      uri = uri.slice(1, -1);
+    }
+  }
 
   if (!uri) {
     connectionError = 'MONGODB_URI environment variable is missing.';

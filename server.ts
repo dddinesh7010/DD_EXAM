@@ -22,6 +22,23 @@ import {
 
 dotenv.config();
 
+// Fallback to .env.example if key environment variables are missing
+if (!process.env.MONGODB_URI || !process.env.GEMINI_API_KEY) {
+  const envExamplePath = path.join(process.cwd(), '.env.example');
+  if (fs.existsSync(envExamplePath)) {
+    try {
+      const exampleConfig = dotenv.parse(fs.readFileSync(envExamplePath));
+      for (const k in exampleConfig) {
+        if (!process.env[k]) {
+          process.env[k] = exampleConfig[k];
+        }
+      }
+    } catch (e) {
+      console.warn('[Server] Failed to parse .env.example fallback:', e);
+    }
+  }
+}
+
 /**
  * Programmatically cleans prefix text like "In the scope of JTO LICE 2022," or "Regarding JTO LICE 2022,"
  * from question texts, option texts, and translations, while also ensuring no repeated/duplicate questions are returned.
