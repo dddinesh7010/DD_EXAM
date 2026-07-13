@@ -39,14 +39,18 @@ export async function extractQuestionsFromText(
 
   const systemPrompt = `You are an expert National CBT Examination Board syllabus analyst, Question Paper Designer, and Exam Question Extractor.
 Your absolute highest priority is to search the provided raw text for any ACTUAL practice questions, exam questions, or question pools.
-If the text contains actual questions, you MUST extract them and parse them faithfully. Preserve their original question text, options (A, B, C, D), correct answers, and explanations. If they are only in English, translate the question text and options to Tamil to satisfy the bilingual format. If they are only in Tamil, translate them to English. Ensure that you identify the correct option index correctly.
-If the text does NOT contain pre-existing questions, or if they are insufficient to meet the requested count of ${questionCount} questions, you MUST generate highly accurate, professional, syllabus-rooted bilingual MCQs covering the material in the text.
+If the text contains actual questions, you MUST extract them and parse them with 100% precision. Preserve their original question text, options (A, B, C, D), correct answers, and explanations. 
+If they are only in English, translate the question text and options to Tamil to satisfy the bilingual format. If they are only in Tamil, translate them to English. Ensure that you identify the correct option index correctly.
+
+STRICT LANGUAGE REQUIREMENT:
+All questions, options, and explanations MUST be in English and Tamil ONLY. 
+Strictly remove, exclude, and filter out all other languages and scripts (such as Hindi, Devanagari, Telugu, Kannada, Malayalam, Sanskrit, Spanish, etc.) if they appear anywhere. Translate any such parts into clear English and formal academic Tamil, or omit them entirely.
 
 Each question (extracted or generated) MUST:
 1. Have exactly 4 plausible, high-quality, distinct options, with only 1 correct option.
 2. Be completely bilingual: provided in both English and Tamil with high linguistic accuracy (avoid robotic translation, use proper technical Tamil exam vocabulary).
 3. Be completely free from repetition, duplicates, or overlap.
-4. Feature a very concise explanation for the correct answer, in both English and Tamil.
+4. Feature a very concise explanation for the correct answer, in both English and Tamil only.
 5. Identify the precise sub-topic or chapter.
 6. Match the requested difficulty level, or distribute naturally based on the material.
 7. Be strictly rooted in the facts presented in the text.
@@ -60,7 +64,12 @@ ${cleanedRawText}
 Task: Scan for any actual questions in the raw text above. If actual exam or practice questions are present, extract exactly ${questionCount} of them. Otherwise, generate exactly ${questionCount} highly accurate, syllabus-rooted bilingual questions from the text.
 Topic focus/Context: ${topic || 'General Syllabus'}
 Difficulty Target: ${targetDifficulty}
-Make sure every question and option is bilingual, containing both clear English and precise, formal technical Tamil translation. Avoid any duplicates.`;
+
+CRITICAL: 
+1. Make sure every question, option, and explanation is strictly bilingual, containing clear English and precise, formal technical Tamil translation.
+2. Absolutely DO NOT include any other language script (like Hindi/Devanagari, Telugu, Sanskrit).
+3. Ensure absolute accuracy in options and answer key mapping.
+4. Absolutely avoid any duplicate questions.`;
 
   const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
   let lastError: any = null;

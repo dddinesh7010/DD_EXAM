@@ -214,11 +214,22 @@ function cleanAndDeduplicateQuestions(questions: any[]): any[] {
         break;
       }
 
-      // 3. Option Set Overlap Check
-      // If 3 or more option strings are exactly identical, it is likely the same core question
+      // 3. Token-based Jaccard Similarity (Tamil)
+      if (qTamilText && existing.questionTamilText) {
+        const existingTamilTokens = getTokens(existing.questionTamilText);
+        const tamilSimilarity = calculateJaccardSimilarity(qTamilTokens, existingTamilTokens);
+        if (tamilSimilarity > 0.65) {
+          console.log(`[Deduplicator] Removing Tamil semantic duplicate (Jaccard: ${tamilSimilarity.toFixed(2)}): "${qTamilText}" vs "${existing.questionTamilText}"`);
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      // 4. Option Set Overlap Check
+      // If 3 or more option strings are exactly identical, it is the same core question
       const existingOptSet = new Set(existing.options.map((o: string) => o.toLowerCase().trim()));
       const commonOpts = options.filter((o: string) => existingOptSet.has(o.toLowerCase().trim())).length;
-      if (commonOpts >= 3 && similarity > 0.4) {
+      if (commonOpts >= 3) {
         console.log(`[Deduplicator] Removing high option-signature duplicate (${commonOpts}/4 matching options): "${qText}"`);
         isDuplicate = true;
         break;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play } from 'lucide-react';
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play, ExternalLink } from 'lucide-react';
 import { Question } from '../types';
 
 interface SavedPDF {
@@ -160,6 +160,7 @@ export default function UploadPDF({
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [previewTab, setPreviewTab] = useState<'visual' | 'info'>('visual');
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -726,162 +727,136 @@ export default function UploadPDF({
 
       <div className="p-6">
         {pdfFile ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="pdf-workspace-layout">
-            {/* Left Column: Exam Parameters & Actions */}
-            <div className="lg:col-span-5 flex flex-col justify-between space-y-6">
-              <div className="space-y-5">
-                {/* Selected File Details */}
-                <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 bg-emerald-100/70 rounded-full flex items-center justify-center text-emerald-700 shrink-0 border border-emerald-200">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-gray-800 truncate" id="selected-file-name">
-                        {pdfFile.name}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider">
-                          {(pdfFile.size / (1024 * 1024)).toFixed(2)} MB • PDF
-                        </p>
-                        {savedPDFs.some(item => item.id === (pdfFile ? pdfFile.name + '_' + pdfFile.size : '')) ? (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                            <CheckCircle2 className="w-2.5 h-2.5" /> Saved to Library
-                          </span>
-                        ) : (
-                          <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                            Not Saved
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {!isAnalyzing && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      {!savedPDFs.some(item => item.id === (pdfFile ? pdfFile.name + '_' + pdfFile.size : '')) && (
-                        <button
-                          type="button"
-                          onClick={() => handleSavePDF(pdfFile)}
-                          disabled={isSavingPDF}
-                          className="text-[10px] text-indigo-600 hover:text-indigo-700 font-bold uppercase tracking-wider bg-indigo-50 border border-indigo-100 px-2 py-1.5 rounded hover:bg-indigo-100/60 transition-all cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Save className="w-3 h-3" />
-                          {isSavingPDF ? 'Saving...' : 'Save PDF'}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleClearFile}
-                        className="text-[10px] text-rose-600 hover:text-rose-700 font-bold uppercase tracking-wider bg-rose-50 border border-rose-100 px-2 py-1.5 rounded hover:bg-rose-100/60 transition-all cursor-pointer inline-flex items-center gap-1"
-                        id="pdf-remove-btn"
-                      >
-                        <X className="w-3 h-3" />
-                        Replace
-                      </button>
-                    </div>
-                  )}
+          <div className="max-w-2xl mx-auto space-y-6" id="pdf-workspace-layout">
+            {/* Selected File Details */}
+            <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-emerald-100/70 rounded-full flex items-center justify-center text-emerald-700 shrink-0 border border-emerald-200">
+                  <FileText className="w-5 h-5" />
                 </div>
-
-
-
-                {/* Toggle Preview Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowPreview(!showPreview)}
-                  className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  {showPreview ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                      Hide Document Preview
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-                      Show Document Preview
-                    </>
-                  )}
-                </button>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-800 truncate" id="selected-file-name">
+                    {pdfFile.name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider">
+                      {(pdfFile.size / (1024 * 1024)).toFixed(2)} MB • PDF
+                    </p>
+                    {savedPDFs.some(item => item.id === (pdfFile ? pdfFile.name + '_' + pdfFile.size : '')) ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                        <CheckCircle2 className="w-2.5 h-2.5" /> Saved to Library
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Not Saved
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-
-              {/* Action Buttons & Status Indicators */}
-              <div className="space-y-4 pt-4 lg:pt-0">
-                <button
-                  type="button"
-                  disabled={isAnalyzing}
-                  onClick={triggerAnalyzePdf}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 transition-all text-white font-bold text-xs uppercase tracking-wider py-3.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer shadow-sm animate-pulse"
-                  style={{ animationDuration: '4s' }}
-                  id="pdf-submit-btn"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Analyzing with Gemini AI (Parsing Syllabus)...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="w-4 h-4 text-emerald-100 animate-pulse" />
-                      Analyze Syllabus & Launch CBT Exam
-                    </>
+              {!isAnalyzing && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {pdfUrl && (
+                    <a
+                      href={pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-blue-600 hover:text-blue-700 font-bold uppercase tracking-wider bg-blue-50 border border-blue-100 px-2.5 py-1.5 rounded hover:bg-blue-100/60 transition-all cursor-pointer inline-flex items-center gap-1"
+                      title="Open PDF in a secure full-screen browser tab"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      View PDF
+                    </a>
                   )}
-                </button>
+                  {!savedPDFs.some(item => item.id === (pdfFile ? pdfFile.name + '_' + pdfFile.size : '')) && (
+                    <button
+                      type="button"
+                      onClick={() => handleSavePDF(pdfFile)}
+                      disabled={isSavingPDF}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-700 font-bold uppercase tracking-wider bg-indigo-50 border border-indigo-100 px-2 py-1.5 rounded hover:bg-indigo-100/60 transition-all cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Save className="w-3 h-3" />
+                      {isSavingPDF ? 'Saving...' : 'Save'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleClearFile}
+                    className="text-[10px] text-rose-600 hover:text-rose-700 font-bold uppercase tracking-wider bg-rose-50 border border-rose-100 px-2 py-1.5 rounded hover:bg-rose-100/60 transition-all cursor-pointer inline-flex items-center gap-1"
+                    id="pdf-remove-btn"
+                  >
+                    <X className="w-3 h-3" />
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
 
-                {analysisError && (
-                  <div className="bg-rose-50 border border-rose-100 text-rose-700 p-4 rounded-lg text-xs flex gap-2.5 items-start leading-relaxed" id="pdf-error-container">
-                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5 text-rose-800">Syllabus Parser Error</p>
-                      <p className="font-semibold">{analysisError}</p>
-                    </div>
-                  </div>
-                )}
-
-                {successMessage && (
-                  <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-4 rounded-lg text-xs flex gap-2.5 items-start leading-relaxed" id="pdf-success-container">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5 text-emerald-900">Success</p>
-                      <p className="font-semibold">{successMessage}</p>
-                    </div>
-                  </div>
-                )}
+            {/* AI Parsing Specifications */}
+            <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-2.5">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">AI Parsing Specifications</p>
+              <div className="space-y-2 text-[11px] text-gray-600 font-sans">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Direct Text & Question Extraction:</strong> Scans raw PDF for existing question pools with 100% precise indexing.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Syllabus-Based MCQ Generation:</strong> Synthesizes professional mock questions if existing pool is insufficient.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>English & Tamil Translation:</strong> Strictly validates bilingual output format, filtering out any extraneous scripts.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span><strong>Semantic Deduplication:</strong> Computes Jaccard Similarity coefficients to remove overlapping exam questions.</span>
+                </div>
               </div>
             </div>
 
-            {/* Right Column: Visual Previewer */}
-            <div 
-              className={`lg:col-span-7 transition-all duration-300 ${
-                showPreview ? 'block opacity-100 scale-100' : 'hidden lg:block lg:opacity-30 lg:pointer-events-none'
-              }`}
-            >
-              <div className="border border-gray-200 rounded-xl bg-slate-100 shadow-sm overflow-hidden h-[420px] flex flex-col">
-                <div className="bg-gray-800 text-white px-4 py-2.5 flex items-center justify-between text-xs font-semibold select-none shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-gray-300 font-mono text-[10px] uppercase tracking-wider">Syllabus Visual Previewer</span>
-                  </div>
-                  <span className="text-gray-400 text-[10px] font-mono truncate max-w-[200px]" title={pdfFile.name}>
-                    {pdfFile.name}
-                  </span>
-                </div>
-                
-                {pdfUrl ? (
-                  <iframe
-                    src={pdfUrl}
-                    className="w-full h-full border-0 bg-white"
-                    title={`Visual verification preview of ${pdfFile.name}`}
-                  />
+            {/* Action Buttons & Status Indicators */}
+            <div className="space-y-4">
+              <button
+                type="button"
+                disabled={isAnalyzing}
+                onClick={triggerAnalyzePdf}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 transition-all text-white font-bold text-xs uppercase tracking-wider py-3.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer shadow-sm animate-pulse"
+                style={{ animationDuration: '4s' }}
+                id="pdf-submit-btn"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Analyzing with Gemini AI (Parsing Syllabus)...
+                  </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-6">
-                    <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mb-3"></div>
-                    <p className="text-xs font-bold text-gray-600">Generating live verification sandbox...</p>
-                  </div>
+                  <>
+                    <Brain className="w-4 h-4 text-emerald-100 animate-pulse" />
+                    Analyze Syllabus & Launch CBT Exam
+                  </>
                 )}
-              </div>
+              </button>
+
+              {analysisError && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-700 p-4 rounded-lg text-xs flex gap-2.5 items-start leading-relaxed" id="pdf-error-container">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5 text-rose-800">Syllabus Parser Error</p>
+                    <p className="font-semibold">{analysisError}</p>
+                  </div>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-4 rounded-lg text-xs flex gap-2.5 items-start leading-relaxed" id="pdf-success-container">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5 text-emerald-900">Success</p>
+                    <p className="font-semibold">{successMessage}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : jsonFile ? (
