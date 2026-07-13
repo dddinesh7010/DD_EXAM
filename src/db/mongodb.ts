@@ -25,7 +25,9 @@ function updateGlobalCache() {
 }
 
 // Persistent local fallbacks for high-reliability offline testing
-const FALLBACK_FILE = path.join(process.cwd(), 'local_fallback_db.json');
+const FALLBACK_FILE = process.env.VERCEL
+  ? path.join('/tmp', 'local_fallback_db.json')
+  : path.join(process.cwd(), 'local_fallback_db.json');
 
 const localData = loadFallbackData();
 const localResults: any[] = localData.results;

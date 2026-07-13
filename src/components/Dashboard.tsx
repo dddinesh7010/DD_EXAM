@@ -974,7 +974,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                           id={`delete-history-${log.id || log._id}`}
                         >
                           <Trash2 className="w-3 h-3" />
-                          Delete from Database
+                          Delete
                         </button>
                       )}
                       
