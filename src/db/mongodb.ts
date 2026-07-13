@@ -6,6 +6,23 @@ let client: MongoClient | null = null;
 let db: Db | null = null;
 let isConnected = false;
 let connectionError: string | null = null;
+let cachedUri: string | null = null;
+
+// Support caching the client in the global scope for Serverless/Warm-start environments (Vercel)
+const globalMongo = global as any;
+if (globalMongo._mongoClient) {
+  client = globalMongo._mongoClient;
+  cachedUri = globalMongo._mongoUri;
+  isConnected = globalMongo._mongoIsConnected || false;
+  db = globalMongo._mongoDb || null;
+}
+
+function updateGlobalCache() {
+  globalMongo._mongoClient = client;
+  globalMongo._mongoUri = cachedUri;
+  globalMongo._mongoIsConnected = isConnected;
+  globalMongo._mongoDb = db;
+}
 
 // Persistent local fallbacks for high-reliability offline testing
 const FALLBACK_FILE = path.join(process.cwd(), 'local_fallback_db.json');
@@ -59,35 +76,72 @@ export async function getDb(): Promise<Db | null> {
   if (!uri) {
     connectionError = 'MONGODB_URI environment variable is missing.';
     isConnected = false;
+    updateGlobalCache();
     return null;
   }
 
-  if (db && isConnected) {
+  // If already connected with the same URI, reuse the existing Db instance
+  if (db && isConnected && client && cachedUri === uri) {
     return db;
   }
 
+  // If the client exists but the URI has changed, close the old client first to avoid leaks
+  if (client && cachedUri !== uri) {
+    try {
+      console.log('[MongoDB] URI changed or reset called. Closing old database client...');
+      await client.close().catch(() => {});
+    } catch (e) {
+      console.warn('[MongoDB] Error closing old client:', e);
+    }
+    client = null;
+    db = null;
+    isConnected = false;
+  }
+
+  // If no client exists, initialize a new MongoClient with robust serverless-friendly options
+  if (!client) {
+    try {
+      console.log('[MongoDB] Initializing new MongoClient connection...');
+      client = new MongoClient(uri, {
+        connectTimeoutMS: 15000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+        minPoolSize: 0,
+        maxIdleTimeMS: 30000, // Closes idle connections in serverless to prevent exhaustion
+      });
+      cachedUri = uri;
+    } catch (error: any) {
+      console.error('[MongoDB] MongoClient instantiation failed:', error);
+      connectionError = error.message || String(error);
+      isConnected = false;
+      client = null;
+      db = null;
+      updateGlobalCache();
+      return null;
+    }
+  }
+
   try {
-    console.log('[MongoDB] Initializing database connection...');
-    client = new MongoClient(uri, {
-      connectTimeoutMS: 5000,
-      socketTimeoutMS: 5000,
-    });
-    
+    console.log('[MongoDB] Connecting/Verifying active connection to database...');
     await client.connect();
+
     // Use the database name specified in the URI or default to 'cbt_exam_engine'
     const urlParts = uri.split('/');
     const pathPart = urlParts.length > 3 ? urlParts.slice(3).join('/').split('?')[0] : '';
     const dbName = pathPart && pathPart.trim() !== '' ? pathPart : 'cbt_exam_engine';
+    
     db = client.db(dbName);
     isConnected = true;
     connectionError = null;
     console.log(`[MongoDB] Connected successfully to database: "${dbName}"`);
+    updateGlobalCache();
     return db;
   } catch (error: any) {
-    console.error('[MongoDB] Connection failed:', error);
+    console.error('[MongoDB] Connection or database access failed:', error);
     connectionError = error.message || String(error);
     isConnected = false;
     db = null;
+    updateGlobalCache();
     return null;
   }
 }
@@ -98,7 +152,8 @@ export async function getDb(): Promise<Db | null> {
 export async function resetConnection(newUri?: string): Promise<boolean> {
   try {
     if (client) {
-      await client.close();
+      console.log('[MongoDB] Closing existing client in resetConnection...');
+      await client.close().catch(() => {});
     }
   } catch (e) {
     console.warn('[MongoDB] Error closing existing client:', e);
@@ -108,6 +163,8 @@ export async function resetConnection(newUri?: string): Promise<boolean> {
   db = null;
   isConnected = false;
   connectionError = null;
+  cachedUri = null;
+  updateGlobalCache();
 
   if (newUri) {
     process.env.MONGODB_URI = newUri;
