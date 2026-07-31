@@ -4,8 +4,15 @@ export interface User {
   name: string;
 }
 
+export interface MatchItem {
+  id: string;
+  text: string;
+  textTa?: string;
+}
+
 export interface Question {
   id: string;
+  type?: 'mcq' | 'match' | 'passage' | string;
   questionText: string;
   questionTamilText?: string;
   options: string[];
@@ -15,6 +22,14 @@ export interface Question {
   tamilExplanation?: string;
   topic: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
+  // Match the following support
+  leftItems?: MatchItem[];
+  rightItems?: MatchItem[];
+  correctMatchAnswer?: Record<string, string>;
+  // Passage support
+  passageTitle?: string;
+  passageEn?: string;
+  passageTa?: string;
 }
 
 export interface ExamSettings {

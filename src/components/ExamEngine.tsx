@@ -22,7 +22,8 @@ import {
   Type as FontIcon,
   Wifi,
   WifiOff,
-  Database
+  Database,
+  BookOpen
 } from 'lucide-react';
 import { Question, ExamSession, ExamSettings, User as UserType } from '../types';
 import { isOnline } from '../utils/offlineManager';
@@ -687,6 +688,35 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               </div>
             </div>
 
+            {/* Reading Comprehension Passage Box (If present) */}
+            {(currentQuestion.passageEn || currentQuestion.passageTa) && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-5 mb-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-amber-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-amber-700" />
+                    <span className="text-xs font-black text-amber-900 uppercase tracking-wide">
+                      {currentQuestion.passageTitle || 'Reading Comprehension Passage / வாசிப்புப் பத்தி'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono border border-amber-200">
+                    Passage Context
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-slate-800 text-sm leading-relaxed max-h-60 overflow-y-auto pr-1">
+                  {(displayMode === 'bilingual' || displayMode === 'english') && currentQuestion.passageEn && (
+                    <div className="whitespace-pre-line font-serif text-slate-900 bg-white p-3.5 rounded-lg border border-amber-200/60 shadow-2xs">
+                      {currentQuestion.passageEn}
+                    </div>
+                  )}
+                  {(displayMode === 'bilingual' || displayMode === 'tamil') && currentQuestion.passageTa && (
+                    <div className="whitespace-pre-line font-sans text-slate-900 bg-white p-3.5 rounded-lg border border-amber-200/60 shadow-2xs">
+                      {currentQuestion.passageTa}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className={`grid gap-6 ${
               displayMode === 'bilingual' 
                 ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200 lg:gap-8' 
@@ -703,9 +733,42 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         English Question Stem
                       </span>
                     </div>
-                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal whitespace-pre-line ${getQuestionFontSize()}`}>
                       {currentQuestion.questionText}
                     </h3>
+
+                    {/* Match the Following English Table */}
+                    {currentQuestion.leftItems && currentQuestion.rightItems && (
+                      <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden text-xs">
+                        <div className="grid grid-cols-2 bg-slate-100 font-extrabold text-slate-700 p-2.5 border-b border-slate-200 uppercase tracking-wider">
+                          <div>List I (Column A)</div>
+                          <div>List II (Column B)</div>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {currentQuestion.leftItems.map((lItem, lIdx) => {
+                            const rItem = currentQuestion.rightItems?.[lIdx];
+                            return (
+                              <div key={lItem.id || lIdx} className="grid grid-cols-2 p-2.5 hover:bg-slate-50 gap-2 items-center">
+                                <div className="flex items-start gap-2">
+                                  <span className="font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+                                    {lItem.id || String.fromCharCode(65 + lIdx)}
+                                  </span>
+                                  <span className="text-slate-800 font-semibold whitespace-pre-line">{lItem.text}</span>
+                                </div>
+                                {rItem && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+                                      {rItem.id || (lIdx + 1)}
+                                    </span>
+                                    <span className="text-slate-800 font-semibold whitespace-pre-line">{rItem.text}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* English Options */}
@@ -751,7 +814,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                                 {String.fromCharCode(65 + idx)}
                               </span>
                             </div>
-                            <span className={`font-semibold text-slate-900 leading-snug ${getOptionsFontSize()}`}>
+                            <span className={`font-semibold text-slate-900 leading-snug whitespace-pre-line ${getOptionsFontSize()}`}>
                               {option}
                             </span>
                           </div>
@@ -772,9 +835,42 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         தமிழ் வடிவம் (Tamil Version)
                       </span>
                     </div>
-                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal whitespace-pre-line ${getQuestionFontSize()}`}>
                       {currentQuestion.questionTamilText || currentQuestion.questionText}
                     </h3>
+
+                    {/* Match the Following Tamil Table */}
+                    {currentQuestion.leftItems && currentQuestion.rightItems && (
+                      <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden text-xs">
+                        <div className="grid grid-cols-2 bg-slate-100 font-extrabold text-slate-700 p-2.5 border-b border-slate-200 uppercase tracking-wider">
+                          <div>பட்டியல் I (பகுதி A)</div>
+                          <div>பட்டியல் II (பகுதி B)</div>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {currentQuestion.leftItems.map((lItem, lIdx) => {
+                            const rItem = currentQuestion.rightItems?.[lIdx];
+                            return (
+                              <div key={lItem.id || lIdx} className="grid grid-cols-2 p-2.5 hover:bg-slate-50 gap-2 items-center">
+                                <div className="flex items-start gap-2">
+                                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+                                    {lItem.id || String.fromCharCode(65 + lIdx)}
+                                  </span>
+                                  <span className="text-slate-800 font-semibold whitespace-pre-line">{lItem.textTa || lItem.text}</span>
+                                </div>
+                                {rItem && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+                                      {rItem.id || (lIdx + 1)}
+                                    </span>
+                                    <span className="text-slate-800 font-semibold whitespace-pre-line">{rItem.textTa || rItem.text}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Tamil Options */}
@@ -821,7 +917,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                                 {String.fromCharCode(65 + idx)}
                               </span>
                             </div>
-                            <span className={`font-semibold text-slate-900 leading-snug ${getOptionsFontSize()}`}>
+                            <span className={`font-semibold text-slate-900 leading-snug whitespace-pre-line ${getOptionsFontSize()}`}>
                               {optionTamil}
                             </span>
                           </div>
