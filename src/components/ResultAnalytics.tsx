@@ -15,7 +15,7 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
   const [showOnlyQuestions, setShowOnlyQuestions] = useState(false);
 
   // Custom states for report customization
-  const [candidateName, setCandidateName] = useState('DINESH D');
+  const [candidateName, setCandidateName] = useState(log.username || log.userId || 'Candidate');
   const [institutionName, setInstitutionName] = useState('Self-Administered CBT Portal');
   const [showReportConfig, setShowReportConfig] = useState(false);
 

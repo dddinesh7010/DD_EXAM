@@ -19,18 +19,23 @@ import {
   Layers,
   ZoomIn,
   ZoomOut,
-  Type as FontIcon
+  Type as FontIcon,
+  Wifi,
+  WifiOff,
+  Database
 } from 'lucide-react';
-import { Question, ExamSession, ExamSettings } from '../types';
+import { Question, ExamSession, ExamSettings, User as UserType } from '../types';
+import { isOnline } from '../utils/offlineManager';
 
 interface ExamEngineProps {
   session: ExamSession;
   settings: ExamSettings;
   onUpdateSession: (updater: ExamSession | ((prev: ExamSession | null) => ExamSession | null)) => void;
   onSubmitExam: () => void;
+  currentUser?: UserType | null;
 }
 
-export default function ExamEngine({ session, settings, onUpdateSession, onSubmitExam }: ExamEngineProps) {
+export default function ExamEngine({ session, settings, onUpdateSession, onSubmitExam, currentUser }: ExamEngineProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   
   // High-fidelity CBT visual settings
@@ -40,10 +45,12 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [tabFocusWarnings, setTabFocusWarnings] = useState(0);
   
-  // Modals state
+  // Modals & Network Resilience state
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [isNetworkOnline, setIsNetworkOnline] = useState<boolean>(isOnline());
+  const [showOfflineBanner, setShowOfflineBanner] = useState<boolean>(!isOnline());
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const warning5MinPlayedRef = useRef(false);
@@ -218,6 +225,32 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Offline / Online network status listener for active CBT session resilience
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    const handleOnline = () => {
+      setIsNetworkOnline(true);
+      setShowOfflineBanner(true);
+      timer = setTimeout(() => setShowOfflineBanner(false), 6000);
+    };
+
+    const handleOffline = () => {
+      setIsNetworkOnline(false);
+      setShowOfflineBanner(true);
+      playSynthesizedSound(400, 0.3);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -443,6 +476,42 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
 
   return (
     <div className="space-y-4 font-sans select-none" id="exam-engine-root">
+      {/* Offline Resilience Toast/Banner */}
+      {showOfflineBanner && (
+        <div className={`p-3 rounded-lg border flex items-start justify-between gap-3 text-xs shadow-md transition-all ${
+          isNetworkOnline 
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+            : 'bg-amber-50 border-amber-300 text-amber-900'
+        }`}>
+          <div className="flex items-start gap-2.5">
+            {isNetworkOnline ? (
+              <Wifi className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+            )}
+            <div>
+              <span className="font-extrabold uppercase tracking-wide block mb-0.5 text-[11px]">
+                {isNetworkOnline ? '🟢 Connection Restored' : '⚡ Offline Mode Active — Session Protected'}
+              </span>
+              <p className="text-[11px] leading-relaxed">
+                {isNetworkOnline ? (
+                  'Network connection re-established. Cloud sync is active.'
+                ) : (
+                  'Internet connection lost, but your test is 100% unaffected! All answers, bookmarks, time spent, and timer ticks are continuously auto-saved in local memory and will safely submit.'
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowOfflineBanner(false)}
+            className="text-slate-400 hover:text-slate-700 font-bold text-xs p-1 cursor-pointer shrink-0"
+            title="Dismiss notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Protocol Status Bar */}
       <div className="bg-slate-800 text-white rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md border-b-4 border-blue-600">
         <div className="flex items-center gap-2.5">
@@ -454,10 +523,23 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
         </div>
 
         {/* Live Information Strip */}
-        <div className="hidden md:flex items-center gap-6 text-[10px] uppercase font-mono tracking-wider font-semibold text-gray-300 bg-slate-900/60 px-4 py-1.5 rounded border border-slate-700/60">
+        <div className="hidden md:flex items-center gap-4 text-[10px] uppercase font-mono tracking-wider font-semibold text-gray-300 bg-slate-900/60 px-3.5 py-1.5 rounded border border-slate-700/60">
           <div>Subject: <span className="text-white font-bold">{currentQuestion.topic}</span></div>
           <div className="h-3 w-[1px] bg-slate-700"></div>
           <div>Paper Code: <span className="text-white font-bold">CBT-S1-{totalQuestions}Q</span></div>
+          <div className="h-3 w-[1px] bg-slate-700"></div>
+          {/* Real-time Network Resilience Badge */}
+          {isNetworkOnline ? (
+            <div className="flex items-center gap-1 text-emerald-400 font-bold" title="Connected to cloud server">
+              <Wifi className="w-3.5 h-3.5" />
+              <span>Live Sync</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40" title="Offline mode - Responses saved locally">
+              <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+              <span>Offline Protection</span>
+            </div>
+          )}
         </div>
 
         {/* Action Controls & Live Countdown */}
@@ -498,9 +580,9 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
         <div className="lg:col-span-9 flex flex-col justify-between bg-white rounded-lg border border-slate-200 shadow-sm lg:overflow-hidden overflow-visible lg:h-full h-auto">
           
           {/* Left Panel Menu Strip */}
-          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-700 select-none">
+          <div className="px-3 sm:px-5 py-2.5 sm:py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-700 select-none">
             <div className="flex items-center gap-2">
-              <span className="bg-slate-700 text-white font-mono text-[11px] font-bold py-1 px-3 rounded uppercase tracking-wide">
+              <span className="bg-slate-700 text-white font-mono text-[11px] font-bold py-1 px-2.5 sm:px-3 rounded uppercase tracking-wide">
                 Question No. {currentIndex + 1}
               </span>
               <span className="bg-slate-100 text-slate-600 border border-slate-200 py-0.5 px-2 rounded font-medium text-[11px]">
@@ -510,12 +592,12 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
             </div>
 
             {/* Live CBT Utility Controls (Layout Mode + Font Zoom) */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end mt-1 sm:mt-0">
               {/* Show Only Question Toggle */}
               <button
                 type="button"
                 onClick={() => { setShowOnlyQuestion(!showOnlyQuestion); playSynthesizedSound(700, 0.03); }}
-                className={`px-2.5 py-1.5 rounded-xs border font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2 sm:px-2.5 py-1.5 rounded-xs border font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 ${
                   showOnlyQuestion 
                     ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -523,17 +605,18 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 title="Toggle Question Only Mode"
                 id="toggle-question-only-mode"
               >
-                {showOnlyQuestion ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                <span>{showOnlyQuestion ? "Question Only" : "Show Only Question"}</span>
+                {showOnlyQuestion ? <EyeOff className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
+                <span className="hidden xs:inline sm:inline">{showOnlyQuestion ? "Question Only" : "Show Only Question"}</span>
+                <span className="xs:hidden sm:hidden">{showOnlyQuestion ? "Q-Only" : "Q-Only"}</span>
               </button>
 
               {/* Display Language Controller Dropdown (CBT Standard) */}
-              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded px-2.5 py-1 shadow-xs">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wide shrink-0">View In:</span>
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-white border border-slate-300 rounded px-1.5 sm:px-2.5 py-1 shadow-xs max-w-[160px] sm:max-w-none">
+                <span className="hidden sm:inline text-[10px] font-black text-slate-500 uppercase tracking-wide shrink-0">View In:</span>
                 <select
                   value={displayMode}
                   onChange={(e) => { setDisplayMode(e.target.value as any); playSynthesizedSound(700, 0.03); }}
-                  className="bg-transparent border-0 font-bold text-[11px] text-slate-800 focus:outline-none focus:ring-0 cursor-pointer py-0.5"
+                  className="bg-transparent border-0 font-bold text-[10px] sm:text-[11px] text-slate-800 focus:outline-none focus:ring-0 cursor-pointer py-0.5 truncate w-full"
                 >
                   <option value="bilingual">Bilingual (English & Tamil)</option>
                   <option value="english">English Only</option>
@@ -542,11 +625,11 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               </div>
 
               {/* Text Font-size controller */}
-              <div className="flex items-center bg-white border border-slate-200 rounded p-0.5 shadow-xs">
+              <div className="flex items-center bg-white border border-slate-200 rounded p-0.5 shadow-xs shrink-0">
                 <button
                   type="button"
                   onClick={() => { setFontSize('sm'); playSynthesizedSound(700, 0.03); }}
-                  className={`p-1.5 rounded-xs font-bold text-[10px] transition-all cursor-pointer ${
+                  className={`p-1 sm:p-1.5 rounded-xs font-bold text-[10px] transition-all cursor-pointer ${
                     fontSize === 'sm' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-800'
                   }`}
                   title="Zoom Out Font"
@@ -556,7 +639,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 <button
                   type="button"
                   onClick={() => { setFontSize('md'); playSynthesizedSound(700, 0.03); }}
-                  className={`px-2 py-0.5 rounded-xs font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
+                  className={`px-1.5 sm:px-2 py-0.5 rounded-xs font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
                     fontSize === 'md' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-800'
                   }`}
                   title="Default Font Size"
@@ -566,7 +649,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 <button
                   type="button"
                   onClick={() => { setFontSize('lg'); playSynthesizedSound(700, 0.03); }}
-                  className={`p-1.5 rounded-xs font-bold text-[10px] transition-all cursor-pointer ${
+                  className={`p-1 sm:p-1.5 rounded-xs font-bold text-[10px] transition-all cursor-pointer ${
                     fontSize === 'lg' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-800'
                   }`}
                   title="Zoom In Font"
@@ -578,7 +661,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
           </div>
 
           {/* Actual Active Question Sheet Container */}
-          <div className="p-5 md:p-6 flex-1 overflow-y-auto" id="cbt-question-workspace">
+          <div className="p-3.5 sm:p-5 md:p-6 flex-1 overflow-y-auto" id="cbt-question-workspace">
             <div className={`grid gap-6 ${
               displayMode === 'bilingual' 
                 ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200 lg:gap-8' 
@@ -728,54 +811,54 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
           </div>
 
           {/* Exam Bottom Navigation Panel (Real NTA CBT Layout matches) */}
-          <div className="bg-slate-100 border-t border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 select-none">
+          <div className="bg-slate-100 border-t border-slate-200 p-2.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 select-none">
             
             {/* Left buttons: Actions on current question */}
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleMarkForReviewAndNext}
-                className="px-4 py-2.5 text-xs font-black uppercase tracking-wider bg-white border border-slate-300 text-indigo-700 hover:bg-slate-50 hover:border-slate-400 rounded transition-all cursor-pointer shadow-xs"
+                className="flex-1 sm:flex-none px-2.5 sm:px-4 py-2 sm:py-2.5 text-[10.5px] sm:text-xs font-black uppercase tracking-wider bg-white border border-slate-300 text-indigo-700 hover:bg-slate-50 hover:border-slate-400 rounded transition-all cursor-pointer shadow-xs text-center"
                 id="bookmark-btn"
                 title="Mark this question for review and proceed to next"
               >
-                Mark for Review & Next
+                Mark Review & Next
               </button>
               
               <button
                 type="button"
                 onClick={clearSelection}
                 disabled={session.answers[currentQuestion.id] === undefined || session.answers[currentQuestion.id] === -1}
-                className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:pointer-events-none rounded transition-all cursor-pointer shadow-xs"
+                className="px-2.5 sm:px-4 py-2 sm:py-2.5 text-[10.5px] sm:text-xs font-bold uppercase tracking-wider bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:pointer-events-none rounded transition-all cursor-pointer shadow-xs text-center"
                 id="clear-btn"
                 title="Deselect the chosen option"
               >
-                Clear Response
+                Clear
               </button>
             </div>
 
             {/* Right buttons: Navigations and evaluation saves */}
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 justify-between sm:justify-end">
               <button
                 type="button"
                 onClick={handlePrev}
                 disabled={currentIndex === 0}
-                className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border border-slate-300 rounded text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                className="px-3 sm:px-4 py-2 sm:py-2.5 text-[10.5px] sm:text-xs font-bold uppercase tracking-wider border border-slate-300 rounded text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer inline-flex items-center justify-center gap-0.5 sm:gap-1 shadow-xs"
                 id="prev-question-btn"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Back
               </button>
 
               <button
                 type="button"
                 onClick={handleSaveAndNext}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 transition-all text-white font-extrabold text-xs rounded shadow-sm uppercase tracking-widest border border-emerald-600 flex items-center gap-1 cursor-pointer"
+                className="flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 transition-all text-white font-extrabold text-[10.5px] sm:text-xs rounded shadow-sm uppercase tracking-widest border border-emerald-600 flex items-center justify-center gap-1 cursor-pointer"
                 id="save-next-btn"
                 title="Save chosen option and proceed to next question"
               >
                 Save & Next
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
           </div>
@@ -796,7 +879,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               <div className="min-w-0">
                 <h4 className="text-[10px] font-extrabold text-blue-600 leading-none uppercase tracking-widest">Candidate Profile</h4>
                 <p className="text-xs font-black text-slate-800 mt-1 truncate" id="candidate-username">
-                  {settings.defaultLanguage === 'Tamil' ? 'தினேஷ் டி' : 'DINESH D'}
+                  {currentUser?.name || session.username || session.userId || 'Candidate'}
                 </p>
                 <p className="text-[9px] text-slate-500 font-mono font-bold mt-1 uppercase tracking-wide">
                   ROLL: CBT-2026-9B9B
@@ -835,7 +918,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
 
                 {/* 4. Answered and Marked for Review */}
                 <div className="flex items-center gap-2" title="These questions will be evaluated for scoring">
-                  <span className="w-6 h-5 bg-indigo-600 border border-indigo-700 text-white rounded-full text-[9px] font-mono font-bold flex items-center justify-center shrink-0 shadow-xs relative after:content-[''] after:absolute after:-bottom-0.5 after:-right-0.5 after:w-2 after:after:h-2 after:bg-emerald-500 after:rounded-full">
+                  <span className="w-6 h-5 bg-indigo-600 border border-indigo-700 text-white rounded-full text-[9px] font-mono font-bold flex items-center justify-center shrink-0 shadow-xs relative after:content-[''] after:absolute after:-bottom-0.5 after:-right-0.5 after:w-2 after:h-2 after:bg-emerald-500 after:rounded-full">
                     {stats.answeredAndMarked}
                   </span>
                   <span className="leading-tight text-[9px]">Answered & Review</span>

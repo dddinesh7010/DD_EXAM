@@ -4,8 +4,9 @@ import {
   FileText, Sparkles, ArrowLeft, Check, SlidersHorizontal, Filter, Play, Info,
   Database, Download, Server, RefreshCw, Edit2, FileJson, AlertCircle, CheckCircle2, Upload
 } from 'lucide-react';
-import { Question, ExamHistoryLog } from '../types';
+import { Question, ExamHistoryLog, User } from '../types';
 import UploadPDF from './UploadPDF';
+import { getPendingSyncResults, syncPendingResults } from '../utils/offlineManager';
 
 interface DashboardProps {
   history: ExamHistoryLog[];
@@ -13,6 +14,7 @@ interface DashboardProps {
   onViewHistoryDetails: (log: ExamHistoryLog) => void;
   onClearHistory: () => void;
   onDeleteHistoryItem?: (id: string) => void;
+  currentUser?: User | null;
 }
 
 const durationOptions = [
@@ -22,7 +24,7 @@ const durationOptions = [
   { label: '3 hrs', value: 3 * 60 * 60 },
 ];
 
-export default function Dashboard({ history, onStartExam, onViewHistoryDetails, onClearHistory, onDeleteHistoryItem }: DashboardProps) {
+export default function Dashboard({ history, onStartExam, onViewHistoryDetails, onClearHistory, onDeleteHistoryItem, currentUser }: DashboardProps) {
   // Stats calculation
   const totalTests = history.length;
   const avgScore = totalTests > 0 ? Math.round(history.reduce((acc, log) => acc + log.score, 0) / totalTests) : 0;
@@ -48,6 +50,27 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
   const [mongoUploadError, setMongoUploadError] = useState<string | null>(null);
   const [mongoUploadSuccess, setMongoUploadSuccess] = useState<string | null>(null);
 
+  // Offline Pending Sync State
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkPending = () => {
+      const pending = getPendingSyncResults();
+      setPendingSyncCount(pending.length);
+    };
+    checkPending();
+    window.addEventListener('online', checkPending);
+    return () => window.removeEventListener('online', checkPending);
+  }, [history]);
+
+  const handleManualSync = async () => {
+    setIsSyncingOffline(true);
+    const res = await syncPendingResults();
+    setIsSyncingOffline(false);
+    setPendingSyncCount(getPendingSyncResults().length);
+  };
+
   const fetchDbData = async () => {
     setIsLoadingDb(true);
     try {
@@ -57,7 +80,8 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
         setDbStatus(statusData.status);
       }
 
-      const papersRes = await fetch('/api/question-papers');
+      const userIdQuery = currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : '';
+      const papersRes = await fetch(`/api/question-papers${userIdQuery}`);
       const papersData = await papersRes.json();
       if (papersData.success && Array.isArray(papersData.papers)) {
         setSavedPapers(papersData.papers);
@@ -75,7 +99,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
       const res = await fetch(`/api/question-papers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: newTopic.trim() })
+        body: JSON.stringify({ topic: newTopic.trim(), userId: currentUser?.id })
       });
       const data = await res.json();
       if (data.success) {
@@ -203,6 +227,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            userId: currentUser?.id,
             topic: parsedTitle,
             difficulty: parsedDifficulty,
             count: sanitizedQuestions.length,
@@ -274,11 +299,12 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
 
   useEffect(() => {
     fetchDbData();
-  }, [history]);
+  }, [history, currentUser]);
 
   const handleDeleteQuestionPaper = async (id: string) => {
     try {
-      const res = await fetch(`/api/question-papers/${id}`, { method: 'DELETE' });
+      const userIdQuery = currentUser?.id ? `?userId=${encodeURIComponent(currentUser.id)}` : '';
+      const res = await fetch(`/api/question-papers/${id}${userIdQuery}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         setSavedPapers(prev => prev.filter(p => p._id !== id && p.id !== id));
@@ -507,7 +533,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                       type="button"
                       onClick={() => isAvailable && setPendingCount(num)}
                       disabled={!isAvailable}
-                      className={`flex-1 min-w-[50px] py-1.5 px-1 rounded text-xs font-bold border transition-all cursor-pointer ${
+                      className={`flex-1 min-w-[44px] py-1.5 px-0.5 sm:px-1 rounded text-[11px] sm:text-xs font-bold border transition-all cursor-pointer whitespace-nowrap text-center ${
                         pendingCount === num
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : isAvailable
@@ -618,7 +644,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
       </div>
 
       {/* Overview Analytics Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex items-center justify-between" id="metric-tests">
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Exams Practiced</p>
@@ -648,16 +674,6 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
             <Brain className="w-5.5 h-5.5" />
           </div>
         </div>
-
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex items-center justify-between" id="metric-time">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Total Practice Time</p>
-            <h3 className="text-2.5xl font-extrabold text-gray-900 mt-1">{totalTimeSpentFormatted()}</h3>
-          </div>
-          <div className="w-11 h-11 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 border border-amber-100">
-            <Clock className="w-5.5 h-5.5" />
-          </div>
-        </div>
       </div>
 
       {/* Main Content Layout */}
@@ -668,6 +684,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
           <UploadPDF 
             onQuestionsGenerated={handleInterceptStartExam} 
             onDatabaseUpdated={fetchDbData}
+            currentUserId={currentUser?.id}
           />
 
           {/* MongoDB Full-Stack Database Hub */}
@@ -857,8 +874,8 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
             </div>
 
             {/* Connection status section */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4 bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col justify-center space-y-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Database Engine State</span>
                 <div className="flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full inline-block ${dbStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
@@ -866,53 +883,40 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                     {dbStatus?.connected ? 'MongoDB Connected' : 'Local Memory Storage'}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-                  {dbStatus?.connected 
-                    ? 'Successfully integrated with Cloud MongoDB instance. All exam sessions, results, and generated questions auto-sync permanently.'
-                    : 'Working in high-reliability local offline fallback mode. All results and papers are safely buffered in local memory.'
-                  }
-                </p>
-
-                {/* Display connection error details in-place */}
-                {dbStatus?.error && (
-                  <div className="mt-1 bg-red-50 border border-red-100 rounded p-2.5 text-[10px] text-red-600 font-mono leading-relaxed">
-                    <span className="font-bold text-red-800 block mb-0.5">⚠️ Database Connection Issue:</span>
-                    <span className="block break-all bg-red-100/50 p-1 rounded mb-2 text-[9.5px] font-mono">{dbStatus.error}</span>
-                    
-                    {dbStatus.error.toLowerCase().includes('auth') || dbStatus.error.toLowerCase().includes('credential') ? (
-                      <div className="mt-2 pt-2 border-t border-red-200 text-slate-700 font-sans text-[11px] space-y-1.5">
-                        <span className="font-bold text-red-700 block">How to resolve Authentication failure:</span>
-                        <ol className="list-decimal pl-4 space-y-1 text-slate-600">
-                          <li>Go to your <a href="https://cloud.mongodb.com/" target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">MongoDB Atlas Console</a>.</li>
-                          <li>Navigate to <strong>Security &gt; Database Access</strong> on the left-side menu.</li>
-                          <li>Click <strong>Add New Database User</strong> (or update user <code className="bg-slate-100 px-1 rounded text-red-600 font-mono">dddinesh7010</code>).</li>
-                          <li>Choose <strong>Password</strong> authentication, and enter <code className="bg-slate-100 px-1 rounded text-red-600 font-mono">7305351660</code> as the password.</li>
-                          <li>Under <strong>Database User Privileges</strong>, assign <strong>Read and write to any database</strong> or <strong>Atlas Admin</strong>.</li>
-                          <li>Click <strong>Add User</strong> / <strong>Update User</strong>.</li>
-                          <li>Ensure access is allowed from anywhere by going to <strong>Security &gt; Network Access</strong> and adding IP Address <code className="bg-slate-100 px-1 rounded font-mono text-xs">0.0.0.0/0</code>.</li>
-                        </ol>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-slate-500 font-sans mt-1">
-                        Please verify that your database URL is correct and your database server is running.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+                {dbStatus?.connected 
+                  ? 'Successfully integrated with Cloud MongoDB instance. All exam sessions, results, and generated questions auto-sync permanently.'
+                  : 'Working in high-reliability local offline fallback mode. All results and papers are safely buffered in local memory.'
+                }
+              </p>
 
-              <div className="md:col-span-8 grid grid-cols-2 gap-4">
-                <div className="border border-gray-150 rounded-lg p-4 bg-gray-50/40 text-center">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Total Saved Audits</span>
-                  <span className="text-2xl font-black text-slate-800">{dbStatus?.resultsCount ?? history.length}</span>
-                  <span className="text-[9.5px] text-slate-400 block mt-1">exam performance scripts</span>
+              {/* Display connection error details in-place */}
+              {dbStatus?.error && (
+                <div className="mt-1 bg-red-50 border border-red-100 rounded p-2.5 text-[10px] text-red-600 font-mono leading-relaxed">
+                  <span className="font-bold text-red-800 block mb-0.5">⚠️ Database Connection Issue:</span>
+                  <span className="block break-all bg-red-100/50 p-1 rounded mb-2 text-[9.5px] font-mono">{dbStatus.error}</span>
+                  
+                  {dbStatus.error.toLowerCase().includes('auth') || dbStatus.error.toLowerCase().includes('credential') ? (
+                    <div className="mt-2 pt-2 border-t border-red-200 text-slate-700 font-sans text-[11px] space-y-1.5">
+                      <span className="font-bold text-red-700 block">How to resolve Authentication failure:</span>
+                      <ol className="list-decimal pl-4 space-y-1 text-slate-600">
+                        <li>Go to your <a href="https://cloud.mongodb.com/" target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">MongoDB Atlas Console</a>.</li>
+                        <li>Navigate to <strong>Security &gt; Database Access</strong> on the left-side menu.</li>
+                        <li>Click <strong>Add New Database User</strong> (or update user <code className="bg-slate-100 px-1 rounded text-red-600 font-mono">dddinesh7010</code>).</li>
+                        <li>Choose <strong>Password</strong> authentication, and enter <code className="bg-slate-100 px-1 rounded text-red-600 font-mono">7305351660</code> as the password.</li>
+                        <li>Under <strong>Database User Privileges</strong>, assign <strong>Read and write to any database</strong> or <strong>Atlas Admin</strong>.</li>
+                        <li>Click <strong>Add User</strong> / <strong>Update User</strong>.</li>
+                        <li>Ensure access is allowed from anywhere by going to <strong>Security &gt; Network Access</strong> and adding IP Address <code className="bg-slate-100 px-1 rounded font-mono text-xs">0.0.0.0/0</code>.</li>
+                      </ol>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-500 font-sans mt-1">
+                      Please verify that your database URL is correct and your database server is running.
+                    </p>
+                  )}
                 </div>
-                <div className="border border-gray-150 rounded-lg p-4 bg-gray-50/40 text-center">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Stored Exam Papers</span>
-                  <span className="text-2xl font-black text-slate-800">{dbStatus?.papersCount ?? savedPapers.length}</span>
-                  <span className="text-[9.5px] text-gray-400 block mt-1">extracted / generated sets</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -927,6 +931,26 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
               </h2>
             </div>
 
+            {pendingSyncCount > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-2 text-xs text-amber-900">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className={`w-4 h-4 text-amber-600 shrink-0 ${isSyncingOffline ? 'animate-spin' : ''}`} />
+                  <div>
+                    <span className="font-bold block">{pendingSyncCount} Offline {pendingSyncCount === 1 ? 'Submission' : 'Submissions'}</span>
+                    <span className="text-[10px] text-amber-700">Waiting for cloud database sync</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleManualSync}
+                  disabled={isSyncingOffline}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {isSyncingOffline ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
+            )}
+
             {history.length === 0 ? (
               <div className="text-center py-8 px-4 text-gray-400">
                 <FileText className="w-10 h-10 mx-auto text-gray-200 mb-2" />
@@ -938,66 +962,63 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                 {history.map((log) => (
                   <div
                     key={log.id || log._id}
-                    className="group bg-gray-50 hover:bg-gray-100/80 transition-colors p-3.5 rounded-lg border border-gray-100 flex justify-between items-center overflow-hidden"
+                    className="group bg-gray-50 hover:bg-gray-100/80 transition-colors p-3 sm:p-3.5 rounded-lg border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 overflow-hidden"
                   >
                     <div 
                       onClick={() => onViewHistoryDetails(log)}
-                      className="space-y-1 max-w-[70%] cursor-pointer"
+                      className="space-y-1 cursor-pointer w-full min-w-0"
                     >
-                      <p className="text-sm font-bold text-gray-700 truncate group-hover:text-blue-600 transition-colors">
+                      <p className="text-xs sm:text-sm font-bold text-gray-700 truncate group-hover:text-blue-600 transition-colors">
                         {log.title}
                       </p>
-                      <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-gray-400 font-mono">
                         <span>{log.date}</span>
                         <span>•</span>
                         <span>{log.totalQuestions} Questions</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right mr-1">
-                        <span className={`text-sm font-extrabold ${
+
+                    <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-200/60 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs sm:text-sm font-extrabold ${
                           log.accuracy >= 75 ? 'text-emerald-600' : log.accuracy >= 50 ? 'text-indigo-600' : 'text-amber-600'
                         }`}>
                           {log.score}%
                         </span>
-                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Score</p>
+                        <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Score</span>
                       </div>
                       
-                      {onDeleteHistoryItem && (
+                      <div className="flex items-center gap-1.5">
+                        {onDeleteHistoryItem && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteHistoryItem(log.id || log._id);
+                            }}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded transition-all cursor-pointer shrink-0 inline-flex items-center gap-1 text-[10px] font-bold shadow-xs"
+                            title="Delete this result record from the database"
+                            id={`delete-history-${log.id || log._id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span className="text-[10px]">Delete</span>
+                          </button>
+                        )}
+                        
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteHistoryItem(log.id || log._id);
-                          }}
-                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded transition-all cursor-pointer shrink-0 inline-flex items-center gap-1 text-[10px] font-bold shadow-xs"
-                          title="Delete this result record from the database"
-                          id={`delete-history-${log.id || log._id}`}
+                          type="button"
+                          onClick={() => onViewHistoryDetails(log)}
+                          className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition-all cursor-pointer shrink-0 inline-flex items-center gap-1 text-[10px] font-bold"
+                          title="View detailed examination metrics"
                         >
-                          <Trash2 className="w-3 h-3" />
-                          Delete
+                          <span className="text-[10px]">View</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      
-                      <ChevronRight 
-                        onClick={() => onViewHistoryDetails(log)}
-                        className="w-4 h-4 text-gray-400 group-hover:translate-x-0.5 transition-transform cursor-pointer" 
-                      />
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Quick instructions reminder */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
-            <h3 className="font-bold text-gray-800 text-xs uppercase tracking-wider">CBT System Protocol</h3>
-            <ul className="text-xs text-gray-500 space-y-2 list-disc list-inside">
-              <li>Timing is active. The clock counts down continuously.</li>
-              <li>A warning triggers if you attempt to leave the browser tab (anti-cheating trigger).</li>
-              <li>Toggle between English and Tamil per-question at any time.</li>
-              <li>The question palette displays interactive states: answered, bookmarked, visited.</li>
-            </ul>
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Question } from '../types';
 
 interface SavedPDF {
   id: string;
+  userId?: string;
   name: string;
   size: number;
   base64: string;
@@ -12,6 +13,7 @@ interface SavedPDF {
 
 interface SavedExamConfig {
   id: string;
+  userId?: string;
   title: string;
   questions: Question[];
   timeLimit: number;
@@ -41,13 +43,14 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-function savePDFToDB(pdf: Omit<SavedPDF, 'uploadedAt'>): Promise<void> {
+function savePDFToDB(pdf: Omit<SavedPDF, 'uploadedAt'>, userId?: string): Promise<void> {
   return openDB().then((db) => {
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       const item: SavedPDF = {
         ...pdf,
+        userId: userId || pdf.userId,
         uploadedAt: Date.now(),
       };
       const request = store.put(item);
@@ -57,14 +60,17 @@ function savePDFToDB(pdf: Omit<SavedPDF, 'uploadedAt'>): Promise<void> {
   });
 }
 
-function getAllSavedPDFs(): Promise<SavedPDF[]> {
+function getAllSavedPDFs(userId?: string): Promise<SavedPDF[]> {
   return openDB().then((db) => {
     return new Promise<SavedPDF[]>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, 'readonly');
       const store = transaction.objectStore(STORE_NAME);
       const request = store.getAll();
       request.onsuccess = () => {
-        const list = request.result as SavedPDF[];
+        let list = request.result as SavedPDF[];
+        if (userId) {
+          list = list.filter(p => p.userId === userId);
+        }
         list.sort((a, b) => b.uploadedAt - a.uploadedAt);
         resolve(list);
       };
@@ -85,13 +91,14 @@ function deletePDFFromDB(id: string): Promise<void> {
   });
 }
 
-function saveExamToDB(exam: Omit<SavedExamConfig, 'createdAt'>): Promise<void> {
+function saveExamToDB(exam: Omit<SavedExamConfig, 'createdAt'>, userId?: string): Promise<void> {
   return openDB().then((db) => {
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(EXAMS_STORE_NAME, 'readwrite');
       const store = transaction.objectStore(EXAMS_STORE_NAME);
       const item: SavedExamConfig = {
         ...exam,
+        userId: userId || exam.userId,
         createdAt: Date.now(),
       };
       const request = store.put(item);
@@ -101,7 +108,7 @@ function saveExamToDB(exam: Omit<SavedExamConfig, 'createdAt'>): Promise<void> {
   });
 }
 
-function getAllSavedExams(): Promise<SavedExamConfig[]> {
+function getAllSavedExams(userId?: string): Promise<SavedExamConfig[]> {
   return openDB().then((db) => {
     return new Promise<SavedExamConfig[]>((resolve, reject) => {
       if (!db.objectStoreNames.contains(EXAMS_STORE_NAME)) {
@@ -112,7 +119,10 @@ function getAllSavedExams(): Promise<SavedExamConfig[]> {
       const store = transaction.objectStore(EXAMS_STORE_NAME);
       const request = store.getAll();
       request.onsuccess = () => {
-        const list = request.result as SavedExamConfig[];
+        let list = request.result as SavedExamConfig[];
+        if (userId) {
+          list = list.filter(e => e.userId === userId);
+        }
         list.sort((a, b) => b.createdAt - a.createdAt);
         resolve(list);
       };
@@ -149,13 +159,15 @@ interface UploadPDFProps {
   onDatabaseUpdated?: () => void;
   defaultCount?: number | 'all';
   defaultDifficulty?: 'Easy' | 'Medium' | 'Hard' | 'Mixed';
+  currentUserId?: string;
 }
 
 export default function UploadPDF({
   onQuestionsGenerated,
   onDatabaseUpdated,
   defaultCount = 50,
-  defaultDifficulty = 'Mixed'
+  defaultDifficulty = 'Mixed',
+  currentUserId
 }: UploadPDFProps) {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -191,7 +203,7 @@ export default function UploadPDF({
   const [savedExams, setSavedExams] = useState<SavedExamConfig[]>([]);
 
   const loadSavedPDFs = () => {
-    getAllSavedPDFs().then((list) => {
+    getAllSavedPDFs(currentUserId).then((list) => {
       setSavedPDFs(list);
     }).catch(err => {
       console.error('Error loading saved PDFs:', err);
@@ -199,7 +211,7 @@ export default function UploadPDF({
   };
 
   const loadSavedExams = () => {
-    getAllSavedExams().then((list) => {
+    getAllSavedExams(currentUserId).then((list) => {
       setSavedExams(list);
     }).catch(err => {
       console.error('Error loading saved exams:', err);
@@ -209,7 +221,7 @@ export default function UploadPDF({
   useEffect(() => {
     loadSavedPDFs();
     loadSavedExams();
-  }, []);
+  }, [currentUserId]);
 
   const downloadExamAsJSON = (exam: SavedExamConfig) => {
     const dataStr = JSON.stringify({
@@ -453,7 +465,7 @@ export default function UploadPDF({
       questions: finalQuestions,
       timeLimit: finalTimeLimit,
       pdfName: jsonPdfName,
-    });
+    }, currentUserId);
     loadSavedExams();
 
     // Save to MongoDB Database Hub
@@ -462,6 +474,7 @@ export default function UploadPDF({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: currentUserId,
           topic: jsonTitle,
           difficulty: jsonDifficulty,
           count: finalQuestions.length,
@@ -515,7 +528,7 @@ export default function UploadPDF({
         name: fileToSave.name,
         size: fileToSave.size,
         base64,
-      });
+      }, currentUserId);
       setSaveSuccess('PDF successfully saved to library!');
       loadSavedPDFs();
       setTimeout(() => setSaveSuccess(null), 3000);
@@ -648,6 +661,7 @@ export default function UploadPDF({
           count,
           difficulty: difficulty === 'Mixed' ? 'Medium' : difficulty,
           topic: pdfFile.name.replace('.pdf', ''),
+          userId: currentUserId
         }),
       });
 
@@ -676,7 +690,7 @@ export default function UploadPDF({
         questions: data.questions,
         timeLimit: examTimeLimit,
         pdfName: pdfFile.name,
-      }).then(() => {
+      }, currentUserId).then(() => {
         loadSavedExams();
         onDatabaseUpdated?.();
       }).catch(err => console.error('Error auto-saving exam configuration:', err));
@@ -917,7 +931,7 @@ export default function UploadPDF({
                             type="button"
                             onClick={() => isAvailable && setJsonCount(num)}
                             disabled={!isAvailable}
-                            className={`flex-1 min-w-[50px] py-1.5 px-1 rounded text-xs font-bold border transition-all cursor-pointer ${
+                            className={`flex-1 min-w-[44px] py-1.5 px-0.5 sm:px-1 rounded text-[11px] sm:text-xs font-bold border transition-all cursor-pointer whitespace-nowrap text-center ${
                               jsonCount === num
                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                                 : isAvailable

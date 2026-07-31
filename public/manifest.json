@@ -1,0 +1,17 @@
+{
+  "short_name": "DD-CBT",
+  "name": "DD-CBT Examination & Practice System",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1e293b",
+  "theme_color": "#2563eb",
+  "display": "standalone",
+  "orientation": "any",
+  "description": "Offline-resilient Computer-Based Test (CBT) practice system for NTA/Syllabus exams."
+}

@@ -262,6 +262,83 @@ function cleanAndDeduplicateQuestions(questions: any[]): any[] {
   return result;
 }
 
+function sanitizeJSONString(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+
+  // Strip code block markers
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.substring(7);
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.substring(3);
+  }
+  if (cleaned.endsWith("```")) {
+    cleaned = cleaned.substring(0, cleaned.length - 3);
+  }
+  cleaned = cleaned.trim();
+
+  // Remove trailing commas before closing braces/brackets
+  cleaned = cleaned.replace(/,\s*([\}\]])/g, '$1');
+
+  // Replace unescaped control characters inside JSON string literals
+  cleaned = cleaned.replace(/[\u0000-\u001F]+/g, (match) => {
+    if (match.includes('\n') || match.includes('\r')) return ' ';
+    if (match.includes('\t')) return ' ';
+    return '';
+  });
+
+  return cleaned;
+}
+
+function tryRegexExtractQuestion(candidate: string, defaultId: string): any | null {
+  try {
+    const qMatch = candidate.match(/"questionText"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    const qTamilMatch = candidate.match(/"questionTamilText"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    const optionsMatch = candidate.match(/"options"\s*:\s*\[([\s\S]*?)\]/i);
+    const correctIdxMatch = candidate.match(/"correctOptionIndex"\s*:\s*(\d+)/i);
+    const explanationMatch = candidate.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    const tamilExplanationMatch = candidate.match(/"tamilExplanation"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+
+    if (qMatch) {
+      const qText = qMatch[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').trim();
+      const qTamilText = qTamilMatch ? qTamilMatch[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').trim() : qText;
+      
+      let options: string[] = [];
+      if (optionsMatch) {
+        const rawOpts = optionsMatch[1].match(/"((?:[^"\\]|\\.)*)"/g);
+        if (rawOpts) {
+          options = rawOpts.map(o => o.slice(1, -1).replace(/\\"/g, '"').trim());
+        }
+      }
+      if (options.length < 4) {
+        while (options.length < 4) {
+          options.push(`Option ${options.length + 1}`);
+        }
+      }
+
+      const correctOptionIndex = correctIdxMatch ? parseInt(correctIdxMatch[1], 10) : 0;
+      const explanation = explanationMatch ? explanationMatch[1].replace(/\\"/g, '"') : 'Correct answer.';
+      const tamilExplanation = tamilExplanationMatch ? tamilExplanationMatch[1].replace(/\\"/g, '"') : 'சரியான விடை.';
+
+      return {
+        id: defaultId,
+        questionText: qText,
+        questionTamilText: qTamilText,
+        options: options.slice(0, 4),
+        tamilOptions: options.slice(0, 4),
+        correctOptionIndex: (correctOptionIndex >= 0 && correctOptionIndex < 4) ? correctOptionIndex : 0,
+        explanation,
+        tamilExplanation,
+        topic: 'General Syllabus',
+        difficulty: 'Medium'
+      };
+    }
+  } catch (err) {
+    // Regex extraction failed
+  }
+  return null;
+}
+
 function extractValidJSONObjects(text: string): any[] {
   const results: any[] = [];
   let braceCount = 0;
@@ -297,39 +374,46 @@ function extractValidJSONObjects(text: string): any[] {
         braceCount--;
         if (braceCount === 0 && startIndex !== -1) {
           const candidate = text.substring(startIndex, i + 1);
+          let parsedObj: any = null;
+          
           try {
-            const parsedObj = JSON.parse(candidate);
-            if (parsedObj && typeof parsedObj === 'object') {
-              results.push(parsedObj);
-            }
+            parsedObj = JSON.parse(candidate);
           } catch (e) {
-            // Ignore parse errors for nested or invalid sub-blocks
+            try {
+              parsedObj = JSON.parse(sanitizeJSONString(candidate));
+            } catch (e2) {
+              parsedObj = tryRegexExtractQuestion(candidate, `q${results.length + 1}`);
+            }
+          }
+
+          if (parsedObj && typeof parsedObj === 'object' && parsedObj.questionText) {
+            results.push(parsedObj);
           }
           startIndex = -1;
         }
       }
     }
   }
+
+  // If we ended mid-object because of output truncation, attempt regex recovery on the tail
+  if (startIndex !== -1 && startIndex < text.length) {
+    const tailCandidate = text.substring(startIndex);
+    const recovered = tryRegexExtractQuestion(tailCandidate, `q${results.length + 1}`);
+    if (recovered && recovered.questionText) {
+      results.push(recovered);
+    }
+  }
+
   return results;
 }
 
 function parseRobustJSONArray(text: string): any[] {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
+  if (!text) return [];
+  const cleaned = sanitizeJSONString(text);
+  if (!cleaned) return [];
 
-  // 1. Try standard JSON parse first
+  // 1. Standard JSON parse on sanitized text
   try {
-    let cleaned = trimmed;
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.substring(7);
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.substring(3);
-    }
-    if (cleaned.endsWith("```")) {
-      cleaned = cleaned.substring(0, cleaned.length - 3);
-    }
-    cleaned = cleaned.trim();
-    
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) {
       return parsed;
@@ -338,14 +422,30 @@ function parseRobustJSONArray(text: string): any[] {
       return [parsed];
     }
   } catch (e) {
-    // Standard parsing failed, proceed to resilient extraction
+    // Standard parse failed
   }
 
-  // 2. Fallback to resilient object-by-object scanner
+  // 2. Repair truncated JSON array if text starts with '['
+  if (cleaned.startsWith('[')) {
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (lastBrace !== -1) {
+      const repaired = cleaned.substring(0, lastBrace + 1) + ']';
+      try {
+        const parsed = JSON.parse(repaired);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        // Repair failed
+      }
+    }
+  }
+
+  // 3. Fallback to resilient object scanner
   try {
-    return extractValidJSONObjects(trimmed);
+    return extractValidJSONObjects(cleaned);
   } catch (e) {
-    console.error("Resilient JSON object extractor failed:", e);
+    console.warn("Resilient JSON object extractor fallback:", e);
     return [];
   }
 }
@@ -434,7 +534,8 @@ const app = express();
 
   app.get('/api/results', async (req, res) => {
     try {
-      const results = await getExamResults();
+      const userId = (req.query.userId || req.query.username) as string;
+      const results = await getExamResults(userId);
       res.json({ success: true, results });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || String(error) });
@@ -453,7 +554,8 @@ const app = express();
 
   app.delete('/api/results/:id', async (req, res) => {
     try {
-      const deleted = await deleteExamResult(req.params.id);
+      const userId = (req.query.userId || req.query.username) as string;
+      const deleted = await deleteExamResult(req.params.id, userId);
       if (deleted) {
         res.json({ success: true, message: 'Result deleted successfully' });
       } else {
@@ -466,7 +568,8 @@ const app = express();
 
   app.delete('/api/results', async (req, res) => {
     try {
-      await clearAllExamResults();
+      const userId = (req.query.userId || req.query.username || req.body?.userId) as string;
+      await clearAllExamResults(userId);
       res.json({ success: true, message: 'All results deleted successfully' });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || String(error) });
@@ -475,7 +578,8 @@ const app = express();
 
   app.get('/api/question-papers', async (req, res) => {
     try {
-      const papers = await getQuestionPapers();
+      const userId = (req.query.userId || req.query.username) as string;
+      const papers = await getQuestionPapers(userId);
       res.json({ success: true, papers });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || String(error) });
@@ -484,7 +588,8 @@ const app = express();
 
   app.delete('/api/question-papers/:id', async (req, res) => {
     try {
-      const deleted = await deleteQuestionPaper(req.params.id);
+      const userId = (req.query.userId || req.query.username) as string;
+      const deleted = await deleteQuestionPaper(req.params.id, userId);
       if (deleted) {
         res.json({ success: true, message: 'Question paper deleted successfully' });
       } else {
@@ -497,11 +602,11 @@ const app = express();
 
   app.put('/api/question-papers/:id', async (req, res) => {
     try {
-      const { topic } = req.body;
+      const { topic, userId } = req.body;
       if (!topic) {
         return res.status(400).json({ success: false, error: 'Topic is required' });
       }
-      const updated = await updateQuestionPaperTopic(req.params.id, topic);
+      const updated = await updateQuestionPaperTopic(req.params.id, topic, userId);
       if (updated) {
         res.json({ success: true, message: 'Question paper renamed successfully' });
       } else {
@@ -624,8 +729,8 @@ const app = express();
       }
 
       // Determine batch configuration.
-      // To stay safely within output token limits, we generate in batches of up to 25 questions each.
-      const maxBatchSize = 25;
+      // To stay safely within output token limits and ensure fast responses, we generate in batches of up to 12 questions each.
+      const maxBatchSize = 12;
       const batches: { size: number; startIndex: number; batchNumber: number }[] = [];
       let remaining = questionCount;
       let currentStartIndex = 0;
@@ -676,11 +781,15 @@ ${previousTitles}
 `;
         }
 
-        const systemPrompt = `You are an expert National CBT Examination Board syllabus analyst, Question Paper Designer, and Exam Question Extractor.
-Your absolute highest priority is to search the uploaded PDF document for any ACTUAL practice questions, exam questions, or question pools in the current section.
-If the PDF contains actual questions, you MUST extract them and parse them faithfully. Preserve their original question text, options (A, B, C, D), correct answers, and explanations. 
-Translate all questions, options, and explanations into English and Tamil ONLY. Strictly remove all other languages (such as Devanagari, Hindi, Malayalam, Spanish, etc.) if present anywhere. 
-Ensure that you identify the correct option index correctly.
+        const systemPrompt = `You are an expert National CBT Examination Board syllabus analyst, Question Paper Designer, and Exam Question Extractor powered by Gemini Flash AI.
+Your absolute highest priority is to search the uploaded PDF document for ALL ACTUAL practice questions, past exam questions (PYQs), or question pools in the document or current section.
+When extracting questions from the PDF:
+1. Examine the ENTIRE PDF document including any Answer Keys, Solution Sheets, or marked correct answers at the end or inline.
+2. Match every extracted question with its 100% ACCURATE correct answer option index (0 for Option A, 1 for Option B, 2 for Option C, 3 for Option D).
+3. Extract all 4 options (A, B, C, D) accurately.
+4. Translate all questions, options, and explanations into clear English and formal academic Tamil.
+5. Provide a clear, concise explanation explaining WHY the correct option is right based on the syllabus or answer key.
+6. Strictly remove all extraneous scripts/languages (such as Devanagari, Hindi, Malayalam, Spanish, etc.).
 
 If the PDF does NOT contain pre-existing questions in this section, or if they are insufficient to meet the requested count of ${batch.size} questions, you MUST generate highly accurate, professional, syllabus-rooted bilingual MCQs covering the material in this section.
 
@@ -709,11 +818,11 @@ CRITICAL TRUNCATION REQUIREMENT: Keep both the "explanation" and "tamilExplanati
             },
           },
           {
-            text: `Thoroughly analyze this PDF document and scan for any actual questions inside. If you find actual exam or practice questions, extract exactly ${batch.size} of them from the portion of the material corresponding to the range ${startPercent}% to ${endPercent}% of the document content. Otherwise, generate ${batch.size} highly accurate, syllabus-rooted bilingual questions from that section. Topic focus: ${topic || 'General Syllabus'}. Difficulty target: ${difficulty || 'Mixed'}. Make sure all questions are bilingual with high-quality Tamil and English translation. Assign sequential IDs starting from q${batch.startIndex + 1}. Ensure explanations are under 15 words. Avoid any duplicates. ${avoidSection}`,
+            text: `Thoroughly analyze this PDF document and scan for all actual questions and answer keys inside. Extract exactly ${batch.size} questions from the portion of the material corresponding to the range ${startPercent}% to ${endPercent}% of the document content, accurately matching each question with its correct option answer and explanation. If insufficient questions exist, generate syllabus-rooted bilingual questions. Topic focus: ${topic || 'General Syllabus'}. Difficulty target: ${difficulty || 'Mixed'}. Ensure all questions are bilingual in English and Tamil with 100% accurate option mapping. Assign sequential IDs starting from q${batch.startIndex + 1}. Ensure explanations are under 15 words. Avoid any duplicates. ${avoidSection}`,
           },
         ];
 
-        const modelsToTry = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+        const modelsToTry = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
         let responseText = '';
         let success = false;
         let lastError: any = null;
@@ -797,19 +906,24 @@ CRITICAL TRUNCATION REQUIREMENT: Keep both the "explanation" and "tamilExplanati
           continue; // Go to the next batch
         }
 
+        let parsedBatch: any[] = [];
         try {
-          const parsed = parseRobustJSONArray(responseText);
-          if (parsed.length === 0) {
-            throw new Error(`Response for Batch #${batch.batchNumber} parsed 0 valid question objects`);
-          }
-          allQuestions.push(...parsed);
+          parsedBatch = parseRobustJSONArray(responseText);
         } catch (e: any) {
-          console.error(`Failed to parse JSON for Batch #${batch.batchNumber}:`, responseText);
-          console.warn(`[Batch ${batch.batchNumber}] JSON parse failure (likely due to truncation or token limits). Falling back to offline generated questions for this batch.`);
-          const offlineQuestions = generateOfflineQuestions(topic || 'General Syllabus', batch.size, difficulty || 'Mixed');
-          const batchQuestions = offlineQuestions.map((q, idx) => ({
+          console.warn(`[Batch ${batch.batchNumber}] JSON parse warning:`, e?.message);
+        }
+
+        if (parsedBatch.length > 0) {
+          allQuestions.push(...parsedBatch);
+        }
+
+        if (parsedBatch.length < batch.size) {
+          const needed = batch.size - parsedBatch.length;
+          console.warn(`[Batch ${batch.batchNumber}] Parsed ${parsedBatch.length}/${batch.size} questions. Filling ${needed} fallback questions.`);
+          const offlineQuestions = generateOfflineQuestions(topic || 'General Syllabus', needed * 2, difficulty || 'Mixed');
+          const batchQuestions = offlineQuestions.slice(0, needed).map((q, idx) => ({
             ...q,
-            id: `q${batch.startIndex + idx + 1}`
+            id: `q${batch.startIndex + parsedBatch.length + idx + 1}`
           }));
           allQuestions.push(...batchQuestions);
         }

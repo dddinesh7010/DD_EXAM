@@ -1,3 +1,9 @@
+export interface User {
+  id: string; // Normalized ID, e.g., 'DINESH D' or 'DAYANA'
+  username: string; // Display username
+  name: string;
+}
+
 export interface Question {
   id: string;
   questionText: string;
@@ -22,6 +28,8 @@ export interface ExamSettings {
 
 export interface ExamSession {
   id: string;
+  userId?: string;
+  username?: string;
   title: string;
   questions: Question[];
   timeLimit: number; // in seconds
@@ -41,6 +49,8 @@ export interface TopicStat {
 export interface ExamHistoryLog {
   id: string;
   _id?: string;
+  userId?: string;
+  username?: string;
   title: string;
   totalQuestions: number;
   answeredCount: number;

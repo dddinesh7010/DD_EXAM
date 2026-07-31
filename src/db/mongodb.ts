@@ -264,6 +264,7 @@ export async function saveExamResult(result: any): Promise<any> {
   const database = await getDb();
   const document = {
     ...result,
+    userId: result.userId || 'DINESH D',
     createdAt: new Date(),
   };
 
@@ -284,13 +285,17 @@ export async function saveExamResult(result: any): Promise<any> {
 /**
  * Retrieves all saved exam results, sorted by newest.
  */
-export async function getExamResults(): Promise<any[]> {
+export async function getExamResults(userId?: string): Promise<any[]> {
   const database = await getDb();
 
   if (database && isConnected) {
     const col = database.collection('exam_results');
-    return await col.find({}).sort({ createdAt: -1 }).toArray();
+    const filter = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
+    return await col.find(filter).sort({ createdAt: -1 }).toArray();
   } else {
+    if (userId) {
+      return localResults.filter(r => (r.userId === userId || r.username === userId));
+    }
     return localResults;
   }
 }
@@ -298,11 +303,11 @@ export async function getExamResults(): Promise<any[]> {
 /**
  * Deletes an exam result by ID.
  */
-export async function deleteExamResult(id: string): Promise<boolean> {
+export async function deleteExamResult(id: string, userId?: string): Promise<boolean> {
   const database = await getDb();
 
   let localDeleted = false;
-  const index = localResults.findIndex(r => r._id === id || r.id === id);
+  const index = localResults.findIndex(r => (r._id === id || r.id === id) && (!userId || r.userId === userId || r.username === userId));
   if (index !== -1) {
     localResults.splice(index, 1);
     saveFallbackData();
@@ -312,14 +317,15 @@ export async function deleteExamResult(id: string): Promise<boolean> {
   if (database && isConnected) {
     const col = database.collection('exam_results');
     let dbDeleted = false;
+    const userQuery = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
     try {
-      const res = await col.deleteOne({ _id: new ObjectId(id) });
+      const res = await col.deleteOne({ _id: new ObjectId(id), ...userQuery });
       if (res.deletedCount > 0) dbDeleted = true;
     } catch (_) {}
 
     if (!dbDeleted) {
       try {
-        const res = await col.deleteOne({ $or: [{ _id: id as any }, { id: id }] });
+        const res = await col.deleteOne({ $or: [{ _id: id as any }, { id: id }], ...userQuery });
         if (res.deletedCount > 0) dbDeleted = true;
       } catch (_) {}
     }
@@ -336,6 +342,7 @@ export async function saveQuestionPaper(paper: any): Promise<any> {
   const database = await getDb();
   const document = {
     ...paper,
+    userId: paper.userId || 'DINESH D',
     createdAt: new Date(),
   };
 
@@ -356,13 +363,17 @@ export async function saveQuestionPaper(paper: any): Promise<any> {
 /**
  * Retrieves all saved question papers.
  */
-export async function getQuestionPapers(): Promise<any[]> {
+export async function getQuestionPapers(userId?: string): Promise<any[]> {
   const database = await getDb();
 
   if (database && isConnected) {
     const col = database.collection('question_papers');
-    return await col.find({}).sort({ createdAt: -1 }).toArray();
+    const filter = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
+    return await col.find(filter).sort({ createdAt: -1 }).toArray();
   } else {
+    if (userId) {
+      return localQuestionPapers.filter(p => (p.userId === userId || p.username === userId));
+    }
     return localQuestionPapers;
   }
 }
@@ -370,21 +381,22 @@ export async function getQuestionPapers(): Promise<any[]> {
 /**
  * Deletes a question paper by ID.
  */
-export async function deleteQuestionPaper(id: string): Promise<boolean> {
+export async function deleteQuestionPaper(id: string, userId?: string): Promise<boolean> {
   const database = await getDb();
 
   if (database && isConnected) {
     const col = database.collection('question_papers');
+    const userQuery = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
     try {
-      const res = await col.deleteOne({ _id: new ObjectId(id) });
+      const res = await col.deleteOne({ _id: new ObjectId(id), ...userQuery });
       if (res.deletedCount > 0) return true;
     } catch (_) {
-      const res = await col.deleteOne({ _id: id as any });
+      const res = await col.deleteOne({ _id: id as any, ...userQuery });
       if (res.deletedCount > 0) return true;
     }
     return false;
   } else {
-    const index = localQuestionPapers.findIndex(p => p._id === id || p.id === id);
+    const index = localQuestionPapers.findIndex(p => (p._id === id || p.id === id) && (!userId || p.userId === userId || p.username === userId));
     if (index !== -1) {
       localQuestionPapers.splice(index, 1);
       saveFallbackData();
@@ -395,17 +407,26 @@ export async function deleteQuestionPaper(id: string): Promise<boolean> {
 }
 
 /**
- * Clears all exam results in the database and fallback storage.
+ * Clears all exam results in the database and fallback storage for a user.
  */
-export async function clearAllExamResults(): Promise<boolean> {
+export async function clearAllExamResults(userId?: string): Promise<boolean> {
   const database = await getDb();
   
-  localResults.length = 0;
+  if (userId) {
+    for (let i = localResults.length - 1; i >= 0; i--) {
+      if (localResults[i].userId === userId || localResults[i].username === userId) {
+        localResults.splice(i, 1);
+      }
+    }
+  } else {
+    localResults.length = 0;
+  }
   saveFallbackData();
 
   if (database && isConnected) {
     const col = database.collection('exam_results');
-    await col.deleteMany({});
+    const filter = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
+    await col.deleteMany(filter);
     return true;
   }
   return true;
@@ -414,21 +435,22 @@ export async function clearAllExamResults(): Promise<boolean> {
 /**
  * Updates a question paper's topic/name.
  */
-export async function updateQuestionPaperTopic(id: string, newTopic: string): Promise<boolean> {
+export async function updateQuestionPaperTopic(id: string, newTopic: string, userId?: string): Promise<boolean> {
   const database = await getDb();
 
   if (database && isConnected) {
     const col = database.collection('question_papers');
+    const userQuery = userId ? { $or: [{ userId: userId }, { username: userId }] } : {};
     try {
-      let res = await col.updateOne({ _id: new ObjectId(id) }, { $set: { topic: newTopic } });
+      let res = await col.updateOne({ _id: new ObjectId(id), ...userQuery }, { $set: { topic: newTopic } });
       if (res.modifiedCount > 0) return true;
     } catch (_) {
-      let res = await col.updateOne({ _id: id as any }, { $set: { topic: newTopic } });
+      let res = await col.updateOne({ _id: id as any, ...userQuery }, { $set: { topic: newTopic } });
       if (res.modifiedCount > 0) return true;
     }
     return false;
   } else {
-    const index = localQuestionPapers.findIndex(p => p._id === id || p.id === id);
+    const index = localQuestionPapers.findIndex(p => (p._id === id || p.id === id) && (!userId || p.userId === userId || p.username === userId));
     if (index !== -1) {
       localQuestionPapers[index].topic = newTopic;
       saveFallbackData();
