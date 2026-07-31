@@ -7,6 +7,7 @@ import {
 import { Question, ExamHistoryLog, User } from '../types';
 import UploadPDF from './UploadPDF';
 import { getPendingSyncResults, syncPendingResults } from '../utils/offlineManager';
+import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
 
 interface DashboardProps {
   history: ExamHistoryLog[];
@@ -134,93 +135,8 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
       try {
         const json = JSON.parse(event.target?.result as string);
         
-        let parsedQuestions: any[] = [];
-        let parsedTitle = file.name.replace('.json', '');
-        let parsedDifficulty = 'Mixed';
-
-        if (Array.isArray(json)) {
-          parsedQuestions = json;
-        } else if (json && typeof json === 'object') {
-          parsedTitle = json.topic || json.title || json.name || json.quizTitle || file.name.replace('.json', '');
-          parsedDifficulty = json.difficulty || 'Mixed';
-          
-          if (Array.isArray(json.questions)) {
-            parsedQuestions = json.questions;
-          } else if (Array.isArray(json.quizQuestions)) {
-            parsedQuestions = json.quizQuestions;
-          } else if (Array.isArray(json.items)) {
-            parsedQuestions = json.items;
-          } else {
-            // Find any array inside the object
-            const keys = Object.keys(json);
-            for (const key of keys) {
-              if (Array.isArray(json[key]) && json[key].length > 0) {
-                const firstItem = json[key][0];
-                if (firstItem && typeof firstItem === 'object' && ('questionText' in firstItem || 'question' in firstItem)) {
-                  parsedQuestions = json[key];
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-          throw new Error('Could not find any questions list inside this JSON.');
-        }
-
-        // Standardize questions
-        const sanitizedQuestions = parsedQuestions.map((q: any, index: number) => {
-          const id = q.id || `q_mongo_${Date.now()}_${index}`;
-          const questionText = q.questionText || q.question || q.text || `Question #${index + 1}`;
-          const questionTamilText = q.questionTamilText || q.tamilText || questionText;
-          
-          let options = ['Option A', 'Option B', 'Option C', 'Option D'];
-          if (Array.isArray(q.options) && q.options.length >= 2) {
-            options = q.options.map((o: any) => String(o));
-          } else if (Array.isArray(q.choices) && q.choices.length >= 2) {
-            options = q.choices.map((c: any) => String(c));
-          }
-
-          let correctOptionIndex = 0;
-          if (typeof q.correctOptionIndex === 'number') {
-            correctOptionIndex = q.correctOptionIndex;
-          } else if (typeof q.correctIndex === 'number') {
-            correctOptionIndex = q.correctIndex;
-          } else if (typeof q.answerIndex === 'number') {
-            correctOptionIndex = q.answerIndex;
-          } else if (typeof q.correctAnswer === 'number') {
-            correctOptionIndex = q.correctAnswer;
-          } else if (typeof q.correctAnswer === 'string') {
-            const idxMatched = options.findIndex(opt => opt.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim());
-            if (idxMatched !== -1) {
-              correctOptionIndex = idxMatched;
-            } else {
-              const letterMap: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
-              const mapped = letterMap[q.correctAnswer.trim()];
-              if (mapped !== undefined) correctOptionIndex = mapped;
-            }
-          }
-
-          const explanation = q.explanation || q.rationale || q.desc || 'No explanation provided.';
-          const tamilExplanation = q.tamilExplanation || q.explanationTamil || explanation;
-          const topic = q.topic || q.category || q.subject || 'General';
-          const difficulty = q.difficulty || 'Medium';
-          const tamilOptions = Array.isArray(q.tamilOptions) ? q.tamilOptions.map((o: any) => String(o)) : [...options];
-
-          return {
-            id,
-            questionText,
-            questionTamilText,
-            options,
-            tamilOptions,
-            correctOptionIndex,
-            explanation,
-            tamilExplanation,
-            topic,
-            difficulty
-          };
-        });
+        const parsedResult = parseQuestionsFromJSON(json, file.name);
+        const { questions: sanitizedQuestions, title: parsedTitle, difficulty: parsedDifficulty } = parsedResult;
 
         // Save to MongoDB via save-question-paper endpoint
         const res = await fetch('/api/save-question-paper', {
@@ -238,7 +154,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
 
         const data = await res.json();
         if (data.success) {
-          setMongoUploadSuccess(`JSON configuration "${parsedTitle}" successfully saved to MongoDB!`);
+          setMongoUploadSuccess(`JSON configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully saved to MongoDB!`);
           fetchDbData();
           setTimeout(() => setMongoUploadSuccess(null), 4000);
         } else {

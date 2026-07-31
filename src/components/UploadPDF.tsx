@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play, ExternalLink } from 'lucide-react';
 import { Question } from '../types';
+import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
 
 interface SavedPDF {
   id: string;
@@ -247,162 +248,13 @@ export default function UploadPDF({
       try {
         const json = JSON.parse(e.target?.result as string);
         
-        let parsedQuestions: any[] = [];
-        let parsedTitle = 'Imported Exam';
-        let parsedTimeLimit = 0;
-        let parsedPdfName = 'Imported Configuration';
-
-        if (Array.isArray(json)) {
-          parsedQuestions = json;
-          parsedTitle = `Imported Exam Set (${new Date().toLocaleDateString()})`;
-        } else if (json && typeof json === 'object') {
-          parsedTitle = json.title || json.name || json.quizTitle || `Imported Exam (${new Date().toLocaleDateString()})`;
-          parsedPdfName = json.pdfName || 'Imported Configuration';
-          
-          if (Array.isArray(json.questions)) {
-            parsedQuestions = json.questions;
-          } else if (Array.isArray(json.quizQuestions)) {
-            parsedQuestions = json.quizQuestions;
-          } else if (Array.isArray(json.items)) {
-            parsedQuestions = json.items;
-          } else {
-            // Check for any key that contains an array
-            const keys = Object.keys(json);
-            for (const key of keys) {
-              if (Array.isArray(json[key]) && json[key].length > 0) {
-                const firstItem = json[key][0];
-                if (firstItem && typeof firstItem === 'object' && ('questionText' in firstItem || 'question' in firstItem)) {
-                  parsedQuestions = json[key];
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (typeof json.timeLimit === 'number') {
-            parsedTimeLimit = json.timeLimit;
-          }
-        }
-
-        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-          throw new Error('Could not find any questions array in the uploaded JSON. Ensure it has a "questions" list or is a direct list of questions.');
-        }
-
-        // Sanitize and normalize questions to fit the Question type (English and Tamil only, remove diagrams & other languages)
-        const sanitizedQuestions: Question[] = parsedQuestions.map((q: any, index: number) => {
-          // 1. Delete diagram/drawing properties from object if present
-          const cleanQ = { ...q };
-          const diagramKeys = ['diagram', 'image', 'imageUrl', 'diagramUrl', 'diagramBase64', 'diagramData', 'drawing', 'img', 'svg'];
-          diagramKeys.forEach(key => {
-            if (key in cleanQ) {
-              delete cleanQ[key];
-            }
-          });
-
-          // 2. Helper to remove other languages (Devanagari, Malayalam, Telugu, Kannada, Arabic, etc.)
-          const removeOtherLanguagesText = (text: string | undefined): string => {
-            if (!text) return '';
-            return text.replace(/[\u0900-\u097F\u0D00-\u0D7F\u0C80-\u0CFF\u0C00-\u0C7F\u0600-\u06FF]/g, '').trim();
-          };
-
-          // 3. Helper to strip diagram reference strings or markings
-          const stripDiagramTagsAndPhrases = (text: string | undefined): string => {
-            if (!text) return '';
-            let cleaned = text;
-            cleaned = cleaned.replace(/<svg[\s\S]*?<\/svg>/gi, '');
-            cleaned = cleaned.replace(/data:image\/[a-zA-Z+-]+;base64,[^\s"']+/gi, '');
-            cleaned = cleaned.replace(/\[\s*(?:diagram|image|img|drawing|figure|fig|illustration|pic|picture)\s*\]/gi, '');
-            cleaned = cleaned.replace(/<(?:img|image)[\s\S]*?>/gi, '');
-            cleaned = cleaned.replace(/\{\s*(?:diagram|image|img|drawing|figure|fig|illustration)\s*\}/gi, '');
-            cleaned = cleaned.replace(/(?:refer to (?:the )?(?:diagram|figure|illustration|image|fig\.?)(?: below| above)?|as shown in (?:the )?(?:diagram|figure|fig\.?))/gi, '');
-            cleaned = cleaned.replace(/\(?(?:diagram|figure|fig|illustration|image)\s*\d*[:.-]?\)?/gi, '');
-            return cleaned;
-          };
-
-          const processField = (text: string | undefined, isEnglish: boolean): string => {
-            let t = text || '';
-            t = stripDiagramTagsAndPhrases(t);
-            t = removeOtherLanguagesText(t);
-            if (isEnglish) {
-              // Strip Tamil characters (\u0B80-\u0BFF) from purely English fields
-              t = t.replace(/[\u0B80-\u0BFF]/g, '');
-            }
-            return t.trim();
-          };
-
-          const questionText = processField(cleanQ.questionText || cleanQ.question || cleanQ.text || `Question #${index + 1}`, true);
-          let questionTamilText = processField(cleanQ.questionTamilText || cleanQ.tamilText || cleanQ.questionTamil || '', false);
-          if (!questionTamilText) {
-            questionTamilText = questionText; // Fallback to English text
-          }
-
-          // Process options
-          let rawOptions: string[] = [];
-          if (Array.isArray(cleanQ.options)) {
-            rawOptions = cleanQ.options.map((o: any) => String(o));
-          } else if (Array.isArray(cleanQ.choices)) {
-            rawOptions = cleanQ.choices.map((c: any) => String(c));
-          } else if (Array.isArray(cleanQ.answers)) {
-            rawOptions = cleanQ.answers.map((a: any) => String(a));
-          } else {
-            rawOptions = ['Option A', 'Option B', 'Option C', 'Option D'];
-          }
-          const options = rawOptions.map((o: string) => processField(o, true));
-
-          // Process Tamil options
-          let rawTamilOptions = Array.isArray(cleanQ.tamilOptions) ? cleanQ.tamilOptions.map((o: any) => String(o)) : [...options];
-          const tamilOptions = rawTamilOptions.map((o: string) => processField(o, false));
-
-          // Correct Option Index
-          let correctOptionIndex = 0;
-          if (typeof cleanQ.correctOptionIndex === 'number' && cleanQ.correctOptionIndex >= 0 && cleanQ.correctOptionIndex < options.length) {
-            correctOptionIndex = cleanQ.correctOptionIndex;
-          } else if (typeof cleanQ.correctIndex === 'number' && cleanQ.correctIndex >= 0 && cleanQ.correctIndex < options.length) {
-            correctOptionIndex = cleanQ.correctIndex;
-          } else if (typeof cleanQ.answerIndex === 'number' && cleanQ.answerIndex >= 0 && cleanQ.answerIndex < options.length) {
-            correctOptionIndex = cleanQ.answerIndex;
-          } else if (typeof cleanQ.correctAnswer === 'number' && cleanQ.correctAnswer >= 0 && cleanQ.correctAnswer < options.length) {
-            correctOptionIndex = cleanQ.correctAnswer;
-          } else if (typeof cleanQ.correctAnswer === 'string') {
-            const matchedIdx = options.findIndex(opt => opt.toLowerCase().trim() === cleanQ.correctAnswer.toLowerCase().trim());
-            if (matchedIdx !== -1) {
-              correctOptionIndex = matchedIdx;
-            } else {
-              const letterMap: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
-              const mapped = letterMap[cleanQ.correctAnswer.trim()];
-              if (mapped !== undefined && mapped < options.length) {
-                correctOptionIndex = mapped;
-              }
-            }
-          }
-
-          const explanation = processField(cleanQ.explanation || cleanQ.rationale || cleanQ.desc || 'No explanation provided.', true);
-          const tamilExplanation = processField(cleanQ.tamilExplanation || cleanQ.explanationTamil || explanation, false);
-          
-          const topic = cleanQ.topic || cleanQ.category || cleanQ.subject || 'General';
-          
-          let difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium';
-          if (cleanQ.difficulty && ['Easy', 'Medium', 'Hard'].includes(cleanQ.difficulty)) {
-            difficulty = cleanQ.difficulty as 'Easy' | 'Medium' | 'Hard';
-          } else if (cleanQ.level) {
-            const lvl = String(cleanQ.level).toLowerCase();
-            if (lvl.includes('easy')) difficulty = 'Easy';
-            else if (lvl.includes('hard') || lvl.includes('diff')) difficulty = 'Hard';
-          }
-
-          return {
-            id: cleanQ.id || `q_imported_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
-            questionText,
-            questionTamilText,
-            options,
-            tamilOptions,
-            correctOptionIndex,
-            explanation,
-            tamilExplanation,
-            topic,
-            difficulty
-          };
-        });
+        const parsedResult = parseQuestionsFromJSON(json, file.name);
+        const {
+          questions: sanitizedQuestions,
+          title: parsedTitle,
+          pdfName: parsedPdfName,
+          timeLimit: parsedTimeLimit
+        } = parsedResult;
 
         // Set state for professional CBT Configuration instead of immediately running
         setJsonFile(file);
@@ -415,7 +267,7 @@ export default function UploadPDF({
         const defaultCountLimit = sanitizedQuestions.length >= 50 ? 50 : sanitizedQuestions.length;
         setJsonCount(defaultCountLimit);
         setJsonDifficulty('Mixed');
-        setSuccessMessage(`JSON Configuration "${parsedTitle}" successfully loaded! Set questions and difficulty to start the CBT.`);
+        setSuccessMessage(`JSON Configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully loaded! Set questions and difficulty to start the CBT.`);
         setAnalysisError(null);
         setTimeout(() => setSuccessMessage(null), 3000);
 

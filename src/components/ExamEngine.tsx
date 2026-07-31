@@ -661,7 +661,32 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
           </div>
 
           {/* Actual Active Question Sheet Container */}
-          <div className="p-3.5 sm:p-5 md:p-6 flex-1 overflow-y-auto" id="cbt-question-workspace">
+          <div className="p-4 sm:p-6 flex-1 overflow-y-auto bg-slate-50/50" id="cbt-question-workspace">
+            {/* Top Question Header metadata bar */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="bg-blue-600 text-white font-mono text-xs font-black py-1 px-3 rounded-lg shadow-2xs uppercase tracking-wider">
+                  Q {currentIndex + 1} of {totalQuestions}
+                </span>
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                  {currentQuestion.topic || 'General Syllabus'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-lg border ${
+                  currentQuestion.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  currentQuestion.difficulty === 'Hard' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                  'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  {currentQuestion.difficulty || 'Medium'}
+                </span>
+                <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+                  Marks: <span className="text-emerald-600 font-extrabold">+{settings.positiveMarking || 1}</span>
+                  {settings.negativeMarking > 0 && <span className="text-rose-500 font-extrabold">, -{settings.negativeMarking}</span>}
+                </span>
+              </div>
+            </div>
+
             <div className={`grid gap-6 ${
               displayMode === 'bilingual' 
                 ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200 lg:gap-8' 
@@ -671,28 +696,28 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               {/* Left Column / English Panel */}
               {(displayMode === 'bilingual' || displayMode === 'english') && (
                 <div className={`space-y-5 ${displayMode === 'bilingual' ? '' : 'max-w-4xl mx-auto w-full'}`}>
-                  {/* English Question Text */}
-                  <div className="space-y-2 border-b border-slate-100 pb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-mono">
-                        English Column
+                  {/* English Question Text Box */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md font-mono border border-blue-100">
+                        English Question Stem
                       </span>
                     </div>
-                    <h3 className={`font-sans font-extrabold text-slate-800 leading-relaxed ${getQuestionFontSize()}`}>
+                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
                       {currentQuestion.questionText}
                     </h3>
                   </div>
 
                   {/* English Options */}
                   {showOnlyQuestion ? (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 text-center space-y-3" id="english-only-question-placeholder">
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 text-center space-y-3 shadow-xs" id="english-only-question-placeholder">
                       <p className="text-xs text-slate-500 font-semibold">Options are hidden in Question Only Mode.</p>
                       <button
                         type="button"
                         onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-4 h-4" />
                         Reveal Options to Answer
                       </button>
                     </div>
@@ -704,29 +729,29 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                           <div
                             key={idx}
                             onClick={() => selectOption(idx)}
-                            className={`flex items-center gap-3.5 p-3.5 rounded-lg border transition-all cursor-pointer select-none ${
+                            className={`flex items-center gap-3.5 p-4 rounded-xl border transition-all cursor-pointer select-none ${
                               isSelected
-                                ? 'border-blue-600 bg-blue-50/30 text-blue-950 shadow-xs ring-1 ring-blue-500'
-                                : 'border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 bg-white'
+                                ? 'border-blue-600 bg-blue-50/60 text-blue-950 shadow-sm ring-2 ring-blue-500/20'
+                                : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50 text-slate-800 bg-white shadow-2xs'
                             }`}
                           >
                             {/* Radio Input & Alphabet Circle */}
-                            <div className="flex items-center gap-2.5 shrink-0">
+                            <div className="flex items-center gap-3 shrink-0">
                               <input
                                 type="radio"
                                 checked={isSelected}
                                 readOnly
                                 className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
                               />
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center border text-xs font-mono font-bold transition-all ${
+                              <span className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-mono font-extrabold transition-all ${
                                 isSelected
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105'
-                                  : 'bg-slate-50 text-slate-500 border-slate-300'
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105'
+                                  : 'bg-slate-100 text-slate-600 border-slate-300'
                               }`}>
                                 {String.fromCharCode(65 + idx)}
                               </span>
                             </div>
-                            <span className={`font-bold text-slate-800 leading-tight ${getOptionsFontSize()}`}>
+                            <span className={`font-semibold text-slate-900 leading-snug ${getOptionsFontSize()}`}>
                               {option}
                             </span>
                           </div>
@@ -740,28 +765,28 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               {/* Right Column / Tamil Panel */}
               {(displayMode === 'bilingual' || displayMode === 'tamil') && (
                 <div className={`space-y-5 ${displayMode === 'bilingual' ? 'lg:pl-8' : 'max-w-4xl mx-auto w-full'}`}>
-                  {/* Tamil Question Text */}
-                  <div className="space-y-2 border-b border-slate-100 pb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-mono">
-                        தமிழ் வடிவம் (Tamil)
+                  {/* Tamil Question Text Box */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md font-mono border border-emerald-100">
+                        தமிழ் வடிவம் (Tamil Version)
                       </span>
                     </div>
-                    <h3 className={`font-sans font-bold text-slate-800 leading-relaxed ${getQuestionFontSize()}`}>
+                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
                       {currentQuestion.questionTamilText || currentQuestion.questionText}
                     </h3>
                   </div>
 
                   {/* Tamil Options */}
                   {showOnlyQuestion ? (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 text-center space-y-3" id="tamil-only-question-placeholder">
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 text-center space-y-3 shadow-xs" id="tamil-only-question-placeholder">
                       <p className="text-xs text-slate-500 font-semibold">கேள்வி மட்டும் பயன்முறையில் விடைகள் மறைக்கப்பட்டுள்ளன.</p>
                       <button
                         type="button"
                         onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-4 h-4" />
                         விடைகளைக் காட்டு
                       </button>
                     </div>
@@ -774,29 +799,29 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                           <div
                             key={idx}
                             onClick={() => selectOption(idx)}
-                            className={`flex items-center gap-3.5 p-3.5 rounded-lg border transition-all cursor-pointer select-none ${
+                            className={`flex items-center gap-3.5 p-4 rounded-xl border transition-all cursor-pointer select-none ${
                               isSelected
-                                ? 'border-emerald-600 bg-emerald-50/25 text-emerald-950 shadow-xs ring-1 ring-emerald-500'
-                                : 'border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 bg-white'
+                                ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 shadow-sm ring-2 ring-emerald-500/20'
+                                : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-800 bg-white shadow-2xs'
                             }`}
                           >
                             {/* Radio Input & Alphabet Circle */}
-                            <div className="flex items-center gap-2.5 shrink-0">
+                            <div className="flex items-center gap-3 shrink-0">
                               <input
                                 type="radio"
                                 checked={isSelected}
                                 readOnly
                                 className="h-4 w-4 text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
                               />
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center border text-xs font-mono font-bold transition-all ${
+                              <span className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-mono font-extrabold transition-all ${
                                 isSelected
-                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-md scale-105'
-                                  : 'bg-slate-50 text-slate-500 border-slate-300'
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm scale-105'
+                                  : 'bg-slate-100 text-slate-600 border-slate-300'
                               }`}>
                                 {String.fromCharCode(65 + idx)}
                               </span>
                             </div>
-                            <span className={`font-bold text-slate-800 leading-tight ${getOptionsFontSize()}`}>
+                            <span className={`font-semibold text-slate-900 leading-snug ${getOptionsFontSize()}`}>
                               {optionTamil}
                             </span>
                           </div>
