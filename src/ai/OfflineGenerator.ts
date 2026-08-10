@@ -506,12 +506,19 @@ export function generateOfflineQuestions(
 
     generated.push({
       id: `q${i + 1}`,
+      type: 'mcq',
+      question_en: questionText,
       questionText,
+      question_ta: questionTamilText,
       questionTamilText,
+      options_en: [...base.options],
       options: [...base.options],
+      options_ta: [...base.tamilOptions],
       tamilOptions: [...base.tamilOptions],
       correctOptionIndex: base.correctOptionIndex,
+      explanation_en: base.explanation,
       explanation: base.explanation,
+      explanation_ta: base.tamilExplanation,
       tamilExplanation: base.tamilExplanation,
       topic: topicName,
       difficulty: base.difficulty

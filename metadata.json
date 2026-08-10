@@ -1,6 +1,6 @@
 {
-  "name": "DD-CBT Exam System",
-  "description": "A professional Bilingual Computer-Based Testing Simulator with real-time proctoring, dynamic clock timers, and AI PDF syllabus analysis.",
+  "name": "CCSEIVGT 2025 Question Paper Workspace",
+  "description": "Professional bilingual Question Paper Viewer and Exam Simulator supporting MCQ, Match the Following, and Split-Screen Passage Comprehension.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

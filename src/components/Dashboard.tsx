@@ -4,10 +4,14 @@ import {
   FileText, Sparkles, ArrowLeft, Check, SlidersHorizontal, Filter, Play, Info,
   Database, Download, Server, RefreshCw, Edit2, FileJson, AlertCircle, CheckCircle2, Upload
 } from 'lucide-react';
-import { Question, ExamHistoryLog, User } from '../types';
+import { Question, ExamHistoryLog, User, QuestionPaperData } from '../types';
 import UploadPDF from './UploadPDF';
+import { QuestionPaperViewer } from './QuestionPaperViewer';
+import { CCSEIVGT_2025_PAPER } from '../data/defaultQuestions';
 import { getPendingSyncResults, syncPendingResults } from '../utils/offlineManager';
 import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
+import { parseQuestionsFromCSV } from '../utils/csvQuestionParser';
+import { calculateTotalMarks } from '../utils/questionHelpers';
 
 interface DashboardProps {
   history: ExamHistoryLog[];
@@ -46,6 +50,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
   const [historyToDelete, setHistoryToDelete] = useState<string | null>(null);
 
   // Editable paper names & JSON uploading
+  const [activePaperData, setActivePaperData] = useState<QuestionPaperData>(CCSEIVGT_2025_PAPER);
   const [editingPaperId, setEditingPaperId] = useState<string | null>(null);
   const [editingTopicValue, setEditingTopicValue] = useState<string>('');
   const [mongoUploadError, setMongoUploadError] = useState<string | null>(null);
@@ -122,7 +127,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
     }
   };
 
-  const handleUploadJsonToMongo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadFileToMongo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const file = files[0];
@@ -130,13 +135,29 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
     setMongoUploadError(null);
     setMongoUploadSuccess(null);
 
+    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const json = JSON.parse(event.target?.result as string);
-        
-        const parsedResult = parseQuestionsFromJSON(json, file.name);
+        const fileContent = event.target?.result as string;
+        let parsedResult;
+        let sourceName = 'JSON Hub Upload';
+
+        if (isCsv) {
+          parsedResult = parseQuestionsFromCSV(fileContent, file.name);
+          sourceName = 'CSV Hub Upload';
+        } else {
+          const json = JSON.parse(fileContent);
+          parsedResult = parseQuestionsFromJSON(json, file.name);
+          sourceName = 'JSON Hub Upload';
+        }
+
         const { questions: sanitizedQuestions, title: parsedTitle, difficulty: parsedDifficulty } = parsedResult;
+
+        if (sanitizedQuestions.length === 0) {
+          throw new Error('No valid questions found in the file.');
+        }
 
         // Save to MongoDB via save-question-paper endpoint
         const res = await fetch('/api/save-question-paper', {
@@ -148,13 +169,14 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
             difficulty: parsedDifficulty,
             count: sanitizedQuestions.length,
             questions: sanitizedQuestions,
-            source: 'JSON Hub Upload'
+            source: sourceName
           })
         });
 
         const data = await res.json();
         if (data.success) {
-          setMongoUploadSuccess(`JSON configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully saved to MongoDB!`);
+          const fileTypeLabel = isCsv ? 'CSV' : 'JSON';
+          setMongoUploadSuccess(`${fileTypeLabel} configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully saved to MongoDB!`);
           fetchDbData();
           setTimeout(() => setMongoUploadSuccess(null), 4000);
         } else {
@@ -162,14 +184,32 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
         }
 
       } catch (err: any) {
-        console.error('Error uploading JSON to MongoDB:', err);
-        setMongoUploadError(`JSON Import Error: ${err.message || String(err)}`);
+        console.error('Error uploading file to MongoDB:', err);
+        setMongoUploadError(`Import Error: ${err.message || String(err)}`);
         setTimeout(() => setMongoUploadError(null), 6000);
       }
     };
 
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const sampleCsvContent = `parent_id,id,type,question_en,question_ta,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ta,option_b_ta,option_c_ta,option_d_ta,left_a_en,left_a_ta,left_b_en,left_b_ta,left_c_en,left_c_ta,left_d_en,left_d_ta,right_1_en,right_1_ta,right_2_en,right_2_ta,right_3_en,right_3_ta,right_4_en,right_4_ta,answer_a,answer_b,answer_c,answer_d,correct_option_index,correct_answer_en,correct_answer_ta,marks,negative_marks,difficulty,year
+,q1,mcq,"What is the capital of Tamil Nadu?","தமிழ்நாட்டின் தலைநகரம் எது?","Chennai","Madurai","Coimbatore","Trichy","சென்னை","மதுரை","கோயம்புத்தூர்","திருச்சி",,,,,,,,,,,,,,,,0,"Chennai is the capital and largest city of Tamil Nadu.","சென்னை தமிழ்நாட்டின் தலைநகரமாகும்.",2,0.25,Easy,2024
+,q2,match,"Match the types of finite verbs:","பின்வருவனவற்றைப் பொருத்துக:",,,,,,,,,"Transitive","செயப்படுபொருள் குன்றா","Intransitive","செயப்படுபொருள் குன்றிய","Auxiliary","துணைவினை","Modal","தகுதிவினை","Action Verb","செயல் வினை","State Verb","நிலை வினை","Helping Verb","உதவி வினை","Main Verb","முதன்மை வினை",3,1,4,2,,"Transitive connects directly, Intransitive does not.","செயப்படுபொருள் குன்றா வினை நேரடியாக இணைகிறது.",2,0.25,Moderate,2024
+,p1,passage,"Read the passage carefully: Tamil Nadu has a rich heritage of literature spanning over two millennia.","பத்தியைப் படிக்கவும்: தமிழ்நாடு இரண்டு ஆயிரங்களுக்கும் மேற்பட்ட ஆண்டுகள் பழமையான இலக்கிய மரபைக் கொண்டுள்ளது.",,,,,,,,,,,,,,,,,,,,,,,,,,,,2,0.25,Moderate,2024
+p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்நாட்டின் இலக்கிய மரபு எத்தனை ஆண்டுகள் பழமையானது?","500 years","1000 years","Over 2000 years","5000 years","500 ஆண்டுகள்","1000 ஆண்டுகள்","2000 ஆண்டுகளுக்கும் மேல்","5000 ஆண்டுகள்",,,,,,,,,,,,,,,,2,"Literature spans over two millennia (2000 years).","இலக்கியம் 2000 ஆண்டுகளுக்கும் மேலானது.",2,0.25,Easy,2024`;
+
+    const blob = new Blob([sampleCsvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'sample_exam_questions.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const [showUriConfig, setShowUriConfig] = useState(false);
@@ -286,8 +326,13 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
   const [selectedDurationIndex, setSelectedDurationIndex] = useState(0); // index of durationOptions
   const [topicSearch, setTopicSearch] = useState('');
   const [pendingCount, setPendingCount] = useState<number | 'all'>('all');
+  const [pendingCustomCountInput, setPendingCustomCountInput] = useState<string>('');
+  const [pendingRangeStart, setPendingRangeStart] = useState<string>('');
+  const [pendingRangeEnd, setPendingRangeEnd] = useState<string>('');
   const [pendingDifficulty, setPendingDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Mixed'>('Mixed');
   const [pendingCustomTimeMinutes, setPendingCustomTimeMinutes] = useState<string>('');
+  const [pendingDurationHours, setPendingDurationHours] = useState<string>('');
+  const [pendingDurationMins, setPendingDurationMins] = useState<string>('');
 
   // Intercept any exam startup to present the filtering console first
   const handleInterceptStartExam = (questions: Question[], title: string, timeLimit: number) => {
@@ -316,7 +361,12 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
       const matchingIdx = durationOptions.findIndex(opt => opt.value === pendingExam.timeLimit);
       setSelectedDurationIndex(matchingIdx !== -1 ? matchingIdx : 0);
       setPendingCustomTimeMinutes('');
+      setPendingDurationHours('');
+      setPendingDurationMins('');
       setPendingCount('all');
+      setPendingCustomCountInput('');
+      setPendingRangeStart('');
+      setPendingRangeEnd('');
       setPendingDifficulty('Mixed');
       
       setTopicSearch('');
@@ -358,19 +408,60 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
     if (pool.length === 0) {
       pool = pendingExam.questions;
     }
+
+    // 1. Range From - To fields (e.g. From Q# 50 to To Q# 100)
+    const startNum = parseInt(pendingRangeStart, 10);
+    const endNum = parseInt(pendingRangeEnd, 10);
+    if (!isNaN(startNum) || !isNaN(endNum)) {
+      const s = !isNaN(startNum) && startNum > 0 ? startNum : 1;
+      const e = !isNaN(endNum) && endNum > 0 ? endNum : pool.length;
+      if (s <= e) {
+        const startIndex = Math.max(0, s - 1);
+        const endIndex = Math.min(pool.length, e);
+        return pool.slice(startIndex, endIndex);
+      }
+    }
+
+    // 2. Custom Count or typed Range String (e.g. "50-100" or "50 - 100" or "50")
+    if (pendingCustomCountInput.trim() !== '') {
+      const rangeMatch = pendingCustomCountInput.trim().match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (rangeMatch) {
+        const s = parseInt(rangeMatch[1], 10);
+        const e = parseInt(rangeMatch[2], 10);
+        if (s > 0 && e >= s) {
+          const startIndex = Math.max(0, s - 1);
+          const endIndex = Math.min(pool.length, e);
+          return pool.slice(startIndex, endIndex);
+        }
+      }
+
+      const customNum = parseInt(pendingCustomCountInput, 10);
+      if (!isNaN(customNum) && customNum > 0) {
+        return pool.slice(0, Math.min(pool.length, customNum));
+      }
+    }
+
     if (pendingCount === 'all') {
       return pool;
     }
     const countNum = typeof pendingCount === 'number' ? pendingCount : parseInt(pendingCount, 10);
     return pool.slice(0, countNum);
-  }, [pendingExam, pendingDifficulty, pendingCount]);
+  }, [pendingExam, pendingDifficulty, pendingCount, pendingCustomCountInput, pendingRangeStart, pendingRangeEnd]);
 
   const calculatedTimeLimit = useMemo(() => {
+    const hrs = parseFloat(pendingDurationHours);
+    const mins = parseFloat(pendingDurationMins);
+    if (!isNaN(hrs) || !isNaN(mins)) {
+      const totalMinutes = ((isNaN(hrs) ? 0 : hrs) * 60) + (isNaN(mins) ? 0 : mins);
+      if (totalMinutes > 0) {
+        return Math.round(totalMinutes * 60);
+      }
+    }
     if (pendingCustomTimeMinutes && !isNaN(parseInt(pendingCustomTimeMinutes, 10))) {
       return parseInt(pendingCustomTimeMinutes, 10) * 60;
     }
     return durationOptions[selectedDurationIndex]?.value || 1800;
-  }, [selectedDurationIndex, pendingCustomTimeMinutes]);
+  }, [selectedDurationIndex, pendingCustomTimeMinutes, pendingDurationHours, pendingDurationMins]);
 
   // RENDER PENDING EXAM CUSTOMIZATION AND FILTER CONSOLE
   if (pendingExam) {
@@ -431,7 +522,7 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
             </div>
 
             {/* Question Count Selection */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   Questions to Select
@@ -443,14 +534,22 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
               <div className="flex gap-1 flex-wrap">
                 {([50, 100, 150, 200, 'all'] as const).map((num) => {
                   const isAvailable = num === 'all' || pendingExam.questions.length >= num;
+                  const isSelected = !pendingCustomCountInput && !pendingRangeStart && !pendingRangeEnd && pendingCount === num;
                   return (
                     <button
                       key={num}
                       type="button"
-                      onClick={() => isAvailable && setPendingCount(num)}
+                      onClick={() => {
+                        if (isAvailable) {
+                          setPendingCount(num);
+                          setPendingCustomCountInput('');
+                          setPendingRangeStart('');
+                          setPendingRangeEnd('');
+                        }
+                      }}
                       disabled={!isAvailable}
                       className={`flex-1 min-w-[44px] py-1.5 px-0.5 sm:px-1 rounded text-[11px] sm:text-xs font-bold border transition-all cursor-pointer whitespace-nowrap text-center ${
-                        pendingCount === num
+                        isSelected
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : isAvailable
                           ? 'bg-white text-gray-600 border-gray-250 hover:bg-gray-50'
@@ -463,33 +562,227 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                   );
                 })}
               </div>
+
+              {/* Custom Question Range & Count Selection */}
+              <div className={`border rounded-xl p-3 space-y-3 transition-all ${
+                pendingRangeStart || pendingRangeEnd || pendingCustomCountInput
+                  ? 'bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/20'
+                  : 'bg-gray-50/80 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                    Set Question Range or Count:
+                  </label>
+                  {(pendingRangeStart || pendingRangeEnd || pendingCustomCountInput) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingCustomCountInput('');
+                        setPendingRangeStart('');
+                        setPendingRangeEnd('');
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                    >
+                      Reset selection
+                    </button>
+                  )}
+                </div>
+
+                {/* Range Selection Inputs (From Q# - To Q#) */}
+                <div className="space-y-1">
+                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                    Option A: Select Question Range (e.g., 50 - 100)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="relative flex items-center">
+                        <span className="absolute left-2.5 text-[10px] font-bold text-gray-400 pointer-events-none">From Q#</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={pendingExam.questions.length}
+                          value={pendingRangeStart}
+                          onChange={(e) => {
+                            setPendingRangeStart(e.target.value);
+                            setPendingCustomCountInput('');
+                          }}
+                          placeholder="e.g. 50"
+                          className="w-full pl-16 pr-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                          id="range-start-q-input"
+                        />
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-bold text-gray-400">–</span>
+
+                    <div className="flex-1">
+                      <div className="relative flex items-center">
+                        <span className="absolute left-2.5 text-[10px] font-bold text-gray-400 pointer-events-none">To Q#</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={pendingExam.questions.length}
+                          value={pendingRangeEnd}
+                          onChange={(e) => {
+                            setPendingRangeEnd(e.target.value);
+                            setPendingCustomCountInput('');
+                          }}
+                          placeholder="e.g. 100"
+                          className="w-full pl-14 pr-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                          id="range-end-q-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Single Count / Flexible Text Range Input */}
+                <div className="space-y-1">
+                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                    Option B: Or Enter Count / Format (e.g. "50 - 100" or "35")
+                  </span>
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={pendingCustomCountInput}
+                      onChange={(e) => {
+                        setPendingCustomCountInput(e.target.value);
+                        setPendingRangeStart('');
+                        setPendingRangeEnd('');
+                      }}
+                      placeholder={`e.g. 50 - 100 or 25`}
+                      className="w-full pl-3 pr-16 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                      id="custom-question-number-input"
+                    />
+                    <span className="absolute right-3 text-xs font-bold text-gray-400 pointer-events-none">
+                      / {pendingExam.questions.length} Qs
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-gray-600 font-medium bg-white/80 p-2 rounded-lg border border-indigo-100 flex items-center justify-between">
+                  <span>Selected Pool:</span>
+                  <span className="font-bold text-indigo-700 font-mono">
+                    {filteredQuestions.length} Questions
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Timing Selection */}
             <div className="space-y-3">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                CBT Session Duration
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  CBT Session Duration
+                </label>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-mono">
+                  Total: {Math.floor(calculatedTimeLimit / 3600)}h {Math.floor((calculatedTimeLimit % 3600) / 60)}m ({calculatedTimeLimit / 60} mins)
+                </span>
+              </div>
 
               <div className="grid grid-cols-4 gap-1.5" id="duration-select-grid">
-                {durationOptions.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setSelectedDurationIndex(idx);
-                      setPendingCustomTimeMinutes(''); // Clear custom time when preset clicked
-                    }}
-                    className={`py-2 px-1 rounded border text-xs font-bold transition-all cursor-pointer text-center ${
-                      selectedDurationIndex === idx && !pendingCustomTimeMinutes
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    id={`time-pace-${idx}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                {durationOptions.map((opt, idx) => {
+                  const isSelected = selectedDurationIndex === idx && !pendingDurationHours && !pendingDurationMins && !pendingCustomTimeMinutes;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDurationIndex(idx);
+                        setPendingCustomTimeMinutes('');
+                        setPendingDurationHours('');
+                        setPendingDurationMins('');
+                      }}
+                      className={`py-2 px-1 rounded border text-xs font-bold transition-all cursor-pointer text-center ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                      id={`time-pace-${idx}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Set Timing in Hours & Minutes */}
+              <div className={`border rounded-xl p-3 transition-all ${
+                pendingDurationHours || pendingDurationMins
+                  ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-500/20'
+                  : 'bg-gray-50/80 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    Set Custom Duration (Hours & Minutes):
+                  </label>
+                  {(pendingDurationHours || pendingDurationMins) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingDurationHours('');
+                        setPendingDurationMins('');
+                      }}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                    >
+                      Reset to preset
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label htmlFor="custom-duration-hours-input" className="block text-[10px] font-semibold text-gray-500 mb-0.5">
+                      Hours
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        id="custom-duration-hours-input"
+                        min={0}
+                        max={24}
+                        step={1}
+                        value={pendingDurationHours}
+                        onChange={(e) => {
+                          setPendingDurationHours(e.target.value);
+                          setPendingCustomTimeMinutes('');
+                        }}
+                        placeholder="e.g. 1 or 2"
+                        className="w-full pl-3 pr-10 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-gray-400 pointer-events-none">hrs</span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1">
+                    <label htmlFor="custom-duration-mins-input" className="block text-[10px] font-semibold text-gray-500 mb-0.5">
+                      Minutes
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        id="custom-duration-mins-input"
+                        min={0}
+                        max={59}
+                        step={1}
+                        value={pendingDurationMins}
+                        onChange={(e) => {
+                          setPendingDurationMins(e.target.value);
+                          setPendingCustomTimeMinutes('');
+                        }}
+                        placeholder="e.g. 0 or 30"
+                        className="w-full pl-3 pr-10 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-gray-400 pointer-events-none">mins</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-2 text-[11px] text-gray-500 leading-tight">
+                  Enter custom exam duration in hours and minutes to override preset pacing.
+                </p>
               </div>
             </div>
 
@@ -593,9 +886,10 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
       </div>
 
       {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8" id="generate-section">
-        {/* Creation Wizards */}
-        <div className="lg:col-span-8 space-y-6">
+      <div className="space-y-8" id="generate-section">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Creation Wizards */}
+          <div className="lg:col-span-8 space-y-6">
           {/* Method A: Dedicated PDF Syllabus Upload Component */}
           <UploadPDF 
             onQuestionsGenerated={handleInterceptStartExam} 
@@ -613,19 +907,27 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
                     MongoDB Full-Stack Database Hub
                   </h2>
                   <p className="text-[10px] text-gray-400 font-medium">
-                    Manage persistent examination records, PDF papers, and JSON data
+                    Manage persistent examination records, CSV/JSON question sets, and PDF papers
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleDownloadSampleCsv}
+                  className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-bold"
+                  title="Download a template CSV file for formatting exam questions"
+                >
+                  <Download className="w-3.5 h-3.5 shrink-0" />
+                  Sample CSV
+                </button>
                 <label className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-bold">
                   <Upload className="w-3.5 h-3.5 shrink-0" />
-                  Upload JSON
+                  Upload CSV / JSON
                   <input
                     type="file"
-                    accept=".json"
-                    onChange={handleUploadJsonToMongo}
+                    accept=".csv,.json"
+                    onChange={handleUploadFileToMongo}
                     className="hidden"
                   />
                 </label>
@@ -939,5 +1241,6 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

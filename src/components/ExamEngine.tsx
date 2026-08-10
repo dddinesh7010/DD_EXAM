@@ -22,11 +22,14 @@ import {
   Type as FontIcon,
   Wifi,
   WifiOff,
-  Database,
-  BookOpen
+  Database
 } from 'lucide-react';
 import { Question, ExamSession, ExamSettings, User as UserType } from '../types';
+import { MatchQuestionView } from './questionViews/MatchQuestionView';
+import { PassageQuestionView } from './questionViews/PassageQuestionView';
+import { isMatchQuestion, isPassageQuestion, getMCQOptionsEn, getMCQOptionsTa, getQuestionEnText, getQuestionTaText } from '../utils/questionHelpers';
 import { isOnline } from '../utils/offlineManager';
+import { CountdownTimer } from './CountdownTimer';
 
 interface ExamEngineProps {
   session: ExamSession;
@@ -545,11 +548,14 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
 
         {/* Action Controls & Live Countdown */}
         <div className="flex items-center gap-3">
-          {/* Real-time Countdown Timer */}
-          <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded border text-sm font-black font-mono tracking-widest shadow-inner transition-all ${getTimerColorClass()}`}>
-            <Clock className="w-4 h-4 shrink-0 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>{formatTime(timeLeft)}</span>
-          </div>
+          {/* Visual Countdown Timer Component */}
+          <CountdownTimer
+            timeLeft={timeLeft}
+            totalDuration={session.timeLimit}
+            answeredCount={Object.keys(session.answers).length}
+            totalQuestions={totalQuestions}
+            compact={true}
+          />
 
           {/* Help Manual Button */}
           <button
@@ -662,9 +668,9 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
           </div>
 
           {/* Actual Active Question Sheet Container */}
-          <div className="p-4 sm:p-6 flex-1 overflow-y-auto bg-slate-50/50" id="cbt-question-workspace">
+          <div className="p-5 sm:p-8 flex-1 overflow-y-auto bg-slate-50/70" id="cbt-question-workspace">
             {/* Top Question Header metadata bar */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 mb-6 shadow-2xs flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="bg-blue-600 text-white font-mono text-xs font-black py-1 px-3 rounded-lg shadow-2xs uppercase tracking-wider">
                   Q {currentIndex + 1} of {totalQuestions}
@@ -688,247 +694,190 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
               </div>
             </div>
 
-            {/* Reading Comprehension Passage Box (If present) */}
-            {(currentQuestion.passageEn || currentQuestion.passageTa) && (
-              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-5 mb-5 shadow-xs space-y-3">
-                <div className="flex items-center justify-between border-b border-amber-200/80 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-amber-700" />
-                    <span className="text-xs font-black text-amber-900 uppercase tracking-wide">
-                      {currentQuestion.passageTitle || 'Reading Comprehension Passage / வாசிப்புப் பத்தி'}
-                    </span>
+            {isMatchQuestion(currentQuestion) ? (
+              <MatchQuestionView
+                question={currentQuestion}
+                index={currentIndex}
+                displayMode={displayMode}
+                userMatchAnswer={session.answers[currentQuestion.id]}
+                onMatchChange={(leftId, rightId) => {
+                  const existing = session.answers[currentQuestion.id] || {};
+                  const updated = { ...existing, [leftId]: rightId };
+                  onUpdateSession((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      answers: { ...prev.answers, [currentQuestion.id]: updated },
+                    };
+                  });
+                  playSynthesizedSound(650, 0.05);
+                }}
+              />
+            ) : isPassageQuestion(currentQuestion) ? (
+              <PassageQuestionView
+                passageQuestion={currentQuestion}
+                index={currentIndex}
+                displayMode={displayMode}
+                userAnswers={session.answers}
+                onSelectSubOption={(subQId, optIdx) => {
+                  onUpdateSession((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      answers: { ...prev.answers, [subQId]: optIdx },
+                    };
+                  });
+                  playSynthesizedSound(650, 0.05);
+                }}
+              />
+            ) : (
+              <div className={`grid gap-8 ${
+                displayMode === 'bilingual' 
+                  ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200/80' 
+                  : 'grid-cols-1'
+              }`}>
+                
+                {/* Left Column / English Panel */}
+                {(displayMode === 'bilingual' || displayMode === 'english') && (
+                  <div className={`space-y-6 ${displayMode === 'bilingual' ? 'lg:pr-4' : 'max-w-4xl mx-auto w-full'}`}>
+                    {/* English Question Text Box */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-2xs space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 bg-blue-50 px-3 py-1 rounded-lg font-mono border border-blue-100">
+                          English Question Stem
+                        </span>
+                      </div>
+                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                        {getQuestionEnText(currentQuestion)}
+                      </h3>
+                    </div>
+
+                    {/* English Options */}
+                    {showOnlyQuestion ? (
+                      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 shadow-2xs" id="english-only-question-placeholder">
+                        <p className="text-xs text-slate-500 font-semibold">Options are hidden in Question Only Mode.</p>
+                        <button
+                          type="button"
+                          onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
+                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Reveal Options to Answer
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {getMCQOptionsEn(currentQuestion as any).map((option, idx) => {
+                          const isSelected = session.answers[currentQuestion.id] === idx;
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => selectOption(idx)}
+                              className={`flex items-center gap-4 p-4.5 sm:p-5 rounded-2xl border transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? 'border-blue-600 bg-blue-50/70 text-blue-950 shadow-xs ring-2 ring-blue-500/20'
+                                  : 'border-slate-200/90 hover:border-blue-300 hover:bg-slate-50/80 text-slate-800 bg-white shadow-2xs'
+                              }`}
+                            >
+                              {/* Radio Input & Alphabet Circle */}
+                              <div className="flex items-center gap-3 shrink-0">
+                                <input
+                                  type="radio"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="h-4.5 w-4.5 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
+                                />
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs font-mono font-black transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs scale-105'
+                                    : 'bg-slate-100 text-slate-600 border-slate-300'
+                                }`}>
+                                  {String.fromCharCode(65 + idx)}
+                                </span>
+                              </div>
+                              <span className={`font-semibold text-slate-900 leading-relaxed ${getOptionsFontSize()}`}>
+                                {option}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono border border-amber-200">
-                    Passage Context
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-slate-800 text-sm leading-relaxed max-h-60 overflow-y-auto pr-1">
-                  {(displayMode === 'bilingual' || displayMode === 'english') && currentQuestion.passageEn && (
-                    <div className="whitespace-pre-line font-serif text-slate-900 bg-white p-3.5 rounded-lg border border-amber-200/60 shadow-2xs">
-                      {currentQuestion.passageEn}
+                )}
+
+                {/* Right Column / Tamil Panel */}
+                {(displayMode === 'bilingual' || displayMode === 'tamil') && (
+                  <div className={`space-y-6 ${displayMode === 'bilingual' ? 'lg:pl-8' : 'max-w-4xl mx-auto w-full'}`}>
+                    {/* Tamil Question Text Box */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-2xs space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg font-mono border border-emerald-100">
+                          தமிழ் வடிவம் (Tamil Version)
+                        </span>
+                      </div>
+                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                        {getQuestionTaText(currentQuestion) || getQuestionEnText(currentQuestion)}
+                      </h3>
                     </div>
-                  )}
-                  {(displayMode === 'bilingual' || displayMode === 'tamil') && currentQuestion.passageTa && (
-                    <div className="whitespace-pre-line font-sans text-slate-900 bg-white p-3.5 rounded-lg border border-amber-200/60 shadow-2xs">
-                      {currentQuestion.passageTa}
-                    </div>
-                  )}
-                </div>
+
+                    {/* Tamil Options */}
+                    {showOnlyQuestion ? (
+                      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 shadow-2xs" id="tamil-only-question-placeholder">
+                        <p className="text-xs text-slate-500 font-semibold">கேள்வி மட்டும் பயன்முறையில் விடைகள் மறைக்கப்பட்டுள்ளன.</p>
+                        <button
+                          type="button"
+                          onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          விடைகளைக் காட்டு
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {getMCQOptionsEn(currentQuestion as any).map((option, idx) => {
+                          const isSelected = session.answers[currentQuestion.id] === idx;
+                          const optionsTa = getMCQOptionsTa(currentQuestion as any);
+                          const optionTamil = optionsTa[idx] || option;
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => selectOption(idx)}
+                              className={`flex items-center gap-4 p-4.5 sm:p-5 rounded-2xl border transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20'
+                                  : 'border-slate-200/90 hover:border-emerald-300 hover:bg-slate-50/80 text-slate-800 bg-white shadow-2xs'
+                              }`}
+                            >
+                              {/* Radio Input & Alphabet Circle */}
+                              <div className="flex items-center gap-3 shrink-0">
+                                <input
+                                  type="radio"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="h-4.5 w-4.5 text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+                                />
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs font-mono font-black transition-all ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs scale-105'
+                                    : 'bg-slate-100 text-slate-600 border-slate-300'
+                                }`}>
+                                  {String.fromCharCode(65 + idx)}
+                                </span>
+                              </div>
+                              <span className={`font-semibold text-slate-900 leading-relaxed ${getOptionsFontSize()}`}>
+                                {optionTamil}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
-
-            <div className={`grid gap-6 ${
-              displayMode === 'bilingual' 
-                ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200 lg:gap-8' 
-                : 'grid-cols-1'
-            }`}>
-              
-              {/* Left Column / English Panel */}
-              {(displayMode === 'bilingual' || displayMode === 'english') && (
-                <div className={`space-y-5 ${displayMode === 'bilingual' ? '' : 'max-w-4xl mx-auto w-full'}`}>
-                  {/* English Question Text Box */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md font-mono border border-blue-100">
-                        English Question Stem
-                      </span>
-                    </div>
-                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal whitespace-pre-line ${getQuestionFontSize()}`}>
-                      {currentQuestion.questionText}
-                    </h3>
-
-                    {/* Match the Following English Table */}
-                    {currentQuestion.leftItems && currentQuestion.rightItems && (
-                      <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden text-xs">
-                        <div className="grid grid-cols-2 bg-slate-100 font-extrabold text-slate-700 p-2.5 border-b border-slate-200 uppercase tracking-wider">
-                          <div>List I (Column A)</div>
-                          <div>List II (Column B)</div>
-                        </div>
-                        <div className="divide-y divide-slate-100">
-                          {currentQuestion.leftItems.map((lItem, lIdx) => {
-                            const rItem = currentQuestion.rightItems?.[lIdx];
-                            return (
-                              <div key={lItem.id || lIdx} className="grid grid-cols-2 p-2.5 hover:bg-slate-50 gap-2 items-center">
-                                <div className="flex items-start gap-2">
-                                  <span className="font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
-                                    {lItem.id || String.fromCharCode(65 + lIdx)}
-                                  </span>
-                                  <span className="text-slate-800 font-semibold whitespace-pre-line">{lItem.text}</span>
-                                </div>
-                                {rItem && (
-                                  <div className="flex items-start gap-2">
-                                    <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
-                                      {rItem.id || (lIdx + 1)}
-                                    </span>
-                                    <span className="text-slate-800 font-semibold whitespace-pre-line">{rItem.text}</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* English Options */}
-                  {showOnlyQuestion ? (
-                    <div className="bg-white border border-slate-200 rounded-xl p-6 text-center space-y-3 shadow-xs" id="english-only-question-placeholder">
-                      <p className="text-xs text-slate-500 font-semibold">Options are hidden in Question Only Mode.</p>
-                      <button
-                        type="button"
-                        onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Reveal Options to Answer
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {currentQuestion.options.map((option, idx) => {
-                        const isSelected = session.answers[currentQuestion.id] === idx;
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => selectOption(idx)}
-                            className={`flex items-center gap-3.5 p-4 rounded-xl border transition-all cursor-pointer select-none ${
-                              isSelected
-                                ? 'border-blue-600 bg-blue-50/60 text-blue-950 shadow-sm ring-2 ring-blue-500/20'
-                                : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50 text-slate-800 bg-white shadow-2xs'
-                            }`}
-                          >
-                            {/* Radio Input & Alphabet Circle */}
-                            <div className="flex items-center gap-3 shrink-0">
-                              <input
-                                type="radio"
-                                checked={isSelected}
-                                readOnly
-                                className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
-                              />
-                              <span className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-mono font-extrabold transition-all ${
-                                isSelected
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105'
-                                  : 'bg-slate-100 text-slate-600 border-slate-300'
-                              }`}>
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                            </div>
-                            <span className={`font-semibold text-slate-900 leading-snug whitespace-pre-line ${getOptionsFontSize()}`}>
-                              {option}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Right Column / Tamil Panel */}
-              {(displayMode === 'bilingual' || displayMode === 'tamil') && (
-                <div className={`space-y-5 ${displayMode === 'bilingual' ? 'lg:pl-8' : 'max-w-4xl mx-auto w-full'}`}>
-                  {/* Tamil Question Text Box */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md font-mono border border-emerald-100">
-                        தமிழ் வடிவம் (Tamil Version)
-                      </span>
-                    </div>
-                    <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal whitespace-pre-line ${getQuestionFontSize()}`}>
-                      {currentQuestion.questionTamilText || currentQuestion.questionText}
-                    </h3>
-
-                    {/* Match the Following Tamil Table */}
-                    {currentQuestion.leftItems && currentQuestion.rightItems && (
-                      <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden text-xs">
-                        <div className="grid grid-cols-2 bg-slate-100 font-extrabold text-slate-700 p-2.5 border-b border-slate-200 uppercase tracking-wider">
-                          <div>பட்டியல் I (பகுதி A)</div>
-                          <div>பட்டியல் II (பகுதி B)</div>
-                        </div>
-                        <div className="divide-y divide-slate-100">
-                          {currentQuestion.leftItems.map((lItem, lIdx) => {
-                            const rItem = currentQuestion.rightItems?.[lIdx];
-                            return (
-                              <div key={lItem.id || lIdx} className="grid grid-cols-2 p-2.5 hover:bg-slate-50 gap-2 items-center">
-                                <div className="flex items-start gap-2">
-                                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
-                                    {lItem.id || String.fromCharCode(65 + lIdx)}
-                                  </span>
-                                  <span className="text-slate-800 font-semibold whitespace-pre-line">{lItem.textTa || lItem.text}</span>
-                                </div>
-                                {rItem && (
-                                  <div className="flex items-start gap-2">
-                                    <span className="font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[11px] shrink-0">
-                                      {rItem.id || (lIdx + 1)}
-                                    </span>
-                                    <span className="text-slate-800 font-semibold whitespace-pre-line">{rItem.textTa || rItem.text}</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Tamil Options */}
-                  {showOnlyQuestion ? (
-                    <div className="bg-white border border-slate-200 rounded-xl p-6 text-center space-y-3 shadow-xs" id="tamil-only-question-placeholder">
-                      <p className="text-xs text-slate-500 font-semibold">கேள்வி மட்டும் பயன்முறையில் விடைகள் மறைக்கப்பட்டுள்ளன.</p>
-                      <button
-                        type="button"
-                        onClick={() => { setShowOnlyQuestion(false); playSynthesizedSound(700, 0.03); }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
-                      >
-                        <Eye className="w-4 h-4" />
-                        விடைகளைக் காட்டு
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {currentQuestion.options.map((option, idx) => {
-                        const isSelected = session.answers[currentQuestion.id] === idx;
-                        const optionTamil = currentQuestion.tamilOptions?.[idx] || option;
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => selectOption(idx)}
-                            className={`flex items-center gap-3.5 p-4 rounded-xl border transition-all cursor-pointer select-none ${
-                              isSelected
-                                ? 'border-emerald-600 bg-emerald-50/50 text-emerald-950 shadow-sm ring-2 ring-emerald-500/20'
-                                : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-800 bg-white shadow-2xs'
-                            }`}
-                          >
-                            {/* Radio Input & Alphabet Circle */}
-                            <div className="flex items-center gap-3 shrink-0">
-                              <input
-                                type="radio"
-                                checked={isSelected}
-                                readOnly
-                                className="h-4 w-4 text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
-                              />
-                              <span className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-mono font-extrabold transition-all ${
-                                isSelected
-                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm scale-105'
-                                  : 'bg-slate-100 text-slate-600 border-slate-300'
-                              }`}>
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                            </div>
-                            <span className={`font-semibold text-slate-900 leading-snug whitespace-pre-line ${getOptionsFontSize()}`}>
-                              {optionTamil}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
           </div>
 
           {/* Exam Bottom Navigation Panel (Real NTA CBT Layout matches) */}
@@ -1007,6 +956,16 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 </p>
               </div>
             </div>
+
+            {/* Visual Exam Countdown Widget (Sidebar Mode) */}
+            <CountdownTimer
+              timeLeft={timeLeft}
+              totalDuration={session.timeLimit}
+              answeredCount={Object.keys(session.answers).length}
+              totalQuestions={totalQuestions}
+              compact={false}
+              className="shrink-0"
+            />
 
             {/* Authentic CBT Legend Indicators */}
             <div className="bg-white border border-slate-200 p-3 rounded-md space-y-3 shrink-0">

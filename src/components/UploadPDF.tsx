@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play, ExternalLink } from 'lucide-react';
 import { Question } from '../types';
 import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
+import { parseQuestionsFromCSV } from '../utils/csvQuestionParser';
 
 interface SavedPDF {
   id: string;
@@ -192,6 +193,11 @@ export default function UploadPDF({
   const [jsonPdfName, setJsonPdfName] = useState<string>('');
   const [jsonTimeLimit, setJsonTimeLimit] = useState<number>(0);
   const [jsonCount, setJsonCount] = useState<number | 'all'>(50);
+  const [jsonCustomCountInput, setJsonCustomCountInput] = useState<string>('');
+  const [jsonRangeStart, setJsonRangeStart] = useState<string>('');
+  const [jsonRangeEnd, setJsonRangeEnd] = useState<string>('');
+  const [jsonCustomHours, setJsonCustomHours] = useState<string>('');
+  const [jsonCustomMins, setJsonCustomMins] = useState<string>('');
   const [jsonDifficulty, setJsonDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Mixed'>('Mixed');
   const [jsonSearchQuery, setJsonSearchQuery] = useState<string>('');
 
@@ -279,12 +285,49 @@ export default function UploadPDF({
     reader.readAsText(file);
   };
 
+  const handleImportCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const csvText = e.target?.result as string;
+        const parsedResult = parseQuestionsFromCSV(csvText, file.name);
+        const {
+          questions: sanitizedQuestions,
+          title: parsedTitle,
+          pdfName: parsedPdfName,
+          timeLimit: parsedTimeLimit
+        } = parsedResult;
+
+        setJsonFile(file);
+        setJsonQuestions(sanitizedQuestions);
+        setJsonTitle(parsedTitle);
+        setJsonPdfName(parsedPdfName);
+        setJsonTimeLimit(parsedTimeLimit);
+
+        const defaultCountLimit = sanitizedQuestions.length >= 50 ? 50 : sanitizedQuestions.length;
+        setJsonCount(defaultCountLimit);
+        setJsonDifficulty('Mixed');
+        setSuccessMessage(`CSV Question File "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully loaded! Set questions and difficulty to start the CBT.`);
+        setAnalysisError(null);
+        setTimeout(() => setSuccessMessage(null), 4000);
+
+      } catch (err: any) {
+        console.error('Error importing CSV:', err);
+        setAnalysisError(`Failed to import CSV: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleClearJson = () => {
     setJsonFile(null);
     setJsonQuestions([]);
     setJsonTitle('');
     setJsonPdfName('');
     setJsonTimeLimit(0);
+    setJsonCustomCountInput('');
+    setJsonCustomHours('');
+    setJsonCustomMins('');
     setAnalysisError(null);
     setSuccessMessage(null);
   };
@@ -301,14 +344,54 @@ export default function UploadPDF({
       filtered = [...jsonQuestions];
     }
 
-    // Select the count of questions
-    const selectedCount = jsonCount === 'all' ? filtered.length : Math.min(filtered.length, jsonCount);
-    
-    // Shuffle the selected pool to make it unique and engaging
-    const shuffled = [...filtered].sort(() => 0.5 - Math.random());
-    const finalQuestions = shuffled.slice(0, selectedCount);
+    // Slice questions based on range or count
+    let finalQuestions: Question[] = [];
+    const startNum = parseInt(jsonRangeStart, 10);
+    const endNum = parseInt(jsonRangeEnd, 10);
 
-    const finalTimeLimit = jsonTimeLimit || (finalQuestions.length * 60);
+    if (!isNaN(startNum) || !isNaN(endNum)) {
+      const s = !isNaN(startNum) && startNum > 0 ? startNum : 1;
+      const e = !isNaN(endNum) && endNum > 0 ? endNum : filtered.length;
+      if (s <= e) {
+        const startIndex = Math.max(0, s - 1);
+        const endIndex = Math.min(filtered.length, e);
+        finalQuestions = filtered.slice(startIndex, endIndex);
+      }
+    }
+
+    if (finalQuestions.length === 0 && jsonCustomCountInput.trim() !== '') {
+      const rangeMatch = jsonCustomCountInput.trim().match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (rangeMatch) {
+        const s = parseInt(rangeMatch[1], 10);
+        const e = parseInt(rangeMatch[2], 10);
+        if (s > 0 && e >= s) {
+          const startIndex = Math.max(0, s - 1);
+          const endIndex = Math.min(filtered.length, e);
+          finalQuestions = filtered.slice(startIndex, endIndex);
+        }
+      } else {
+        const parsedCustom = parseInt(jsonCustomCountInput, 10);
+        if (!isNaN(parsedCustom) && parsedCustom > 0) {
+          finalQuestions = filtered.slice(0, Math.min(filtered.length, parsedCustom));
+        }
+      }
+    }
+
+    if (finalQuestions.length === 0) {
+      const selectedCount = jsonCount === 'all' ? filtered.length : Math.min(filtered.length, jsonCount);
+      finalQuestions = filtered.slice(0, selectedCount);
+    }
+
+    let finalTimeLimit = jsonTimeLimit || (finalQuestions.length * 60);
+    const hrs = parseFloat(jsonCustomHours);
+    const mins = parseFloat(jsonCustomMins);
+    if (!isNaN(hrs) || !isNaN(mins)) {
+      const totalMinutes = ((isNaN(hrs) ? 0 : hrs) * 60) + (isNaN(mins) ? 0 : mins);
+      if (totalMinutes > 0) {
+        finalTimeLimit = Math.round(totalMinutes * 60);
+      }
+    }
+
     const id = 'imported_' + Date.now();
 
     await saveExamToDB({
@@ -466,10 +549,12 @@ export default function UploadPDF({
         // Automatically save to the local library
         handleSavePDF(file);
       }
-    } else if (file.type === 'application/json' || file.name.endsWith('.json')) {
+    } else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
       handleImportJSON(file);
+    } else if (file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv')) {
+      handleImportCSV(file);
     } else {
-      setAnalysisError('Invalid file type. Please upload a valid PDF document or Exam Configuration JSON.');
+      setAnalysisError('Invalid file type. Please upload a valid PDF document, CSV file, or Exam Configuration JSON.');
       setPdfFile(null);
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
@@ -765,7 +850,7 @@ export default function UploadPDF({
 
                 {/* Question Settings Block */}
                 <div className="space-y-4 bg-gray-50/50 border border-gray-150 rounded-xl p-4">
-                  <div>
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         Questions to Select
@@ -777,14 +862,22 @@ export default function UploadPDF({
                     <div className="flex gap-1 flex-wrap">
                       {([50, 100, 150, 200, 'all'] as const).map((num) => {
                         const isAvailable = num === 'all' || jsonQuestions.length >= num;
+                        const isSelected = !jsonCustomCountInput && !jsonRangeStart && !jsonRangeEnd && jsonCount === num;
                         return (
                           <button
                             key={num}
                             type="button"
-                            onClick={() => isAvailable && setJsonCount(num)}
+                            onClick={() => {
+                              if (isAvailable) {
+                                setJsonCount(num);
+                                setJsonCustomCountInput('');
+                                setJsonRangeStart('');
+                                setJsonRangeEnd('');
+                              }
+                            }}
                             disabled={!isAvailable}
                             className={`flex-1 min-w-[44px] py-1.5 px-0.5 sm:px-1 rounded text-[11px] sm:text-xs font-bold border transition-all cursor-pointer whitespace-nowrap text-center ${
-                              jsonCount === num
+                              isSelected
                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                                 : isAvailable
                                 ? 'bg-white text-gray-600 border-gray-250 hover:bg-gray-50'
@@ -796,6 +889,125 @@ export default function UploadPDF({
                           </button>
                         );
                       })}
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 space-y-2.5 mt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-700">
+                          Set Question Number Range / Count:
+                        </span>
+                        {(jsonRangeStart || jsonRangeEnd || jsonCustomCountInput) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJsonCustomCountInput('');
+                              setJsonRangeStart('');
+                              setJsonRangeEnd('');
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+
+                      {/* From Q# - To Q# inputs */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <div className="relative flex items-center">
+                            <span className="absolute left-2 text-[10px] font-bold text-gray-400 pointer-events-none">From Q#</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={jsonQuestions.length}
+                              value={jsonRangeStart}
+                              onChange={(e) => {
+                                setJsonRangeStart(e.target.value);
+                                setJsonCustomCountInput('');
+                              }}
+                              placeholder="e.g. 50"
+                              className="w-full pl-14 pr-1.5 py-1 bg-gray-50 border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              id="json-range-start-input"
+                            />
+                          </div>
+                        </div>
+
+                        <span className="text-xs font-bold text-gray-400">–</span>
+
+                        <div className="flex-1">
+                          <div className="relative flex items-center">
+                            <span className="absolute left-2 text-[10px] font-bold text-gray-400 pointer-events-none">To Q#</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={jsonQuestions.length}
+                              value={jsonRangeEnd}
+                              onChange={(e) => {
+                                setJsonRangeEnd(e.target.value);
+                                setJsonCustomCountInput('');
+                              }}
+                              placeholder="e.g. 100"
+                              className="w-full pl-12 pr-1.5 py-1 bg-gray-50 border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              id="json-range-end-input"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Format/Count input */}
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={jsonCustomCountInput}
+                          onChange={(e) => {
+                            setJsonCustomCountInput(e.target.value);
+                            setJsonRangeStart('');
+                            setJsonRangeEnd('');
+                          }}
+                          placeholder={`Or enter format e.g. 50 - 100 or 25`}
+                          className="w-full pl-2.5 pr-12 py-1 bg-gray-50 border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          id="json-custom-question-number-input"
+                        />
+                        <span className="absolute right-2 text-xs font-bold text-gray-400 pointer-events-none">
+                          Qs
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Timing Hours & Mins */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      Set Exam Duration
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={24}
+                          step={0.5}
+                          value={jsonCustomHours}
+                          onChange={(e) => setJsonCustomHours(e.target.value)}
+                          placeholder="e.g. 1 or 2"
+                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          id="json-duration-hours-input"
+                        />
+                        <span className="text-xs font-bold text-gray-500">Hrs</span>
+                      </div>
+                      <div className="flex-1 flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          value={jsonCustomMins}
+                          onChange={(e) => setJsonCustomMins(e.target.value)}
+                          placeholder="e.g. 30"
+                          className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          id="json-duration-mins-input"
+                        />
+                        <span className="text-xs font-bold text-gray-500">Mins</span>
+                      </div>
                     </div>
                   </div>
 

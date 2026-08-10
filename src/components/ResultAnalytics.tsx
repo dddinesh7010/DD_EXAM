@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Award, CheckCircle2, XCircle, AlertCircle, Clock, BookOpen, BarChart3, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, Eye, EyeOff, Printer, Settings } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell, PieChart, Pie } from 'recharts';
-import { ExamHistoryLog, Question } from '../types';
+import { ExamHistoryLog, Question, MCQQuestion } from '../types';
+import { getQuestionEnText, getQuestionTaText, getMCQOptionsEn, getMCQOptionsTa, isMCQQuestion, isMatchQuestion, isPassageQuestion } from '../utils/questionHelpers';
 
 interface ResultAnalyticsProps {
   log: ExamHistoryLog;
@@ -369,9 +370,14 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
         <div className="space-y-4" id="review-rows-container">
           {log.questions.map((q, idx) => {
             const userAnswerIdx = log.answers[q.id];
-            const isCorrect = userAnswerIdx === q.correctOptionIndex;
+            const correctIdx = 'correctOptionIndex' in q ? (q as any).correctOptionIndex : undefined;
+            const isCorrect = correctIdx !== undefined ? userAnswerIdx === correctIdx : true;
             const isSkipped = userAnswerIdx === undefined || userAnswerIdx === -1;
             const isExpanded = expandedQuestionId === q.id;
+            const qEn = getQuestionEnText(q);
+            const qTa = getQuestionTaText(q);
+            const optionsEn = isMCQQuestion(q) ? getMCQOptionsEn(q) : [];
+            const optionsTa = isMCQQuestion(q) ? getMCQOptionsTa(q) : [];
 
             return (
               <div
@@ -395,7 +401,7 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                     )}
                     <div>
                       <h4 className="text-sm font-bold text-gray-800 leading-normal">
-                        Question {idx + 1}: {activeReviewLang === 'English' ? q.questionText : (q.questionTamilText || q.questionText)}
+                        Question {idx + 1}: {activeReviewLang === 'English' ? qEn : (qTa || qEn)}
                       </h4>
                     </div>
                   </div>
@@ -417,12 +423,12 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                 </div>
 
                 {/* Options list for "Question & Options Only" mode */}
-                {showOnlyQuestions && (
+                {showOnlyQuestions && optionsEn.length > 0 && (
                   <div className="p-4 pt-0 border-t-0 bg-white/50 space-y-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
-                      {q.options.map((option, oIdx) => {
-                        const optionTamil = q.tamilOptions?.[oIdx];
-                        const isOptionCorrect = oIdx === q.correctOptionIndex;
+                      {optionsEn.map((option, oIdx) => {
+                        const optionTamil = optionsTa[oIdx];
+                        const isOptionCorrect = oIdx === correctIdx;
                         const isOptionSelected = oIdx === userAnswerIdx;
                         
                         let cardStyle = 'border-slate-200 bg-slate-50/50 text-slate-700';
@@ -457,46 +463,48 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                 {isExpanded && !showOnlyQuestions && (
                   <div className="p-5 bg-gray-50/50 border-t border-gray-200 space-y-4 text-sm">
                     {/* Options Audit Table */}
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Options Audit</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {q.options.map((option, oIdx) => {
-                          const isOptionCorrect = oIdx === q.correctOptionIndex;
-                          const isOptionSelected = oIdx === userAnswerIdx;
-                          const optionTamil = q.tamilOptions?.[oIdx];
+                    {optionsEn.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Options Audit</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {optionsEn.map((option, oIdx) => {
+                            const isOptionCorrect = oIdx === correctIdx;
+                            const isOptionSelected = oIdx === userAnswerIdx;
+                            const optionTamil = optionsTa[oIdx];
 
-                          let cardBorder = 'border-gray-200 bg-white text-gray-600';
-                          if (isOptionCorrect) {
-                            cardBorder = 'border-emerald-500 bg-emerald-50/20 text-emerald-950 ring-1 ring-emerald-500 border-2';
-                          } else if (isOptionSelected) {
-                            cardBorder = 'border-rose-400 bg-rose-50/20 text-rose-950 ring-1 ring-rose-400 border-2';
-                          }
+                            let cardBorder = 'border-gray-200 bg-white text-gray-600';
+                            if (isOptionCorrect) {
+                              cardBorder = 'border-emerald-500 bg-emerald-50/20 text-emerald-950 ring-1 ring-emerald-500 border-2';
+                            } else if (isOptionSelected) {
+                              cardBorder = 'border-rose-400 bg-rose-50/20 text-rose-950 ring-1 ring-rose-400 border-2';
+                            }
 
-                          return (
-                            <div key={oIdx} className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 transition-all ${cardBorder}`}>
-                              <span className={`w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 border font-mono font-bold ${
-                                isOptionCorrect
-                                  ? 'bg-emerald-600 text-white border-emerald-600'
-                                  : isOptionSelected
-                                  ? 'bg-rose-500 text-white border-rose-500'
-                                  : 'bg-gray-100 text-gray-400 border-gray-300'
-                              }`}>
-                                {String.fromCharCode(65 + oIdx)}
-                              </span>
-                              <div className="space-y-1">
-                                <p className="font-bold text-gray-850">
-                                  {activeReviewLang === 'English' ? option : (optionTamil || option)}
-                                </p>
-                                <div className="flex gap-1.5 pt-0.5">
-                                  {isOptionCorrect && <span className="text-[9px] font-bold text-emerald-700 uppercase bg-emerald-100/60 px-1 rounded-sm">Correct Choice</span>}
-                                  {isOptionSelected && <span className="text-[9px] font-bold text-gray-500 uppercase bg-gray-200/60 px-1 rounded-sm">Your Selection</span>}
+                            return (
+                              <div key={oIdx} className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 transition-all ${cardBorder}`}>
+                                <span className={`w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 border font-mono font-bold ${
+                                  isOptionCorrect
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : isOptionSelected
+                                    ? 'bg-rose-500 text-white border-rose-500'
+                                    : 'bg-gray-100 text-gray-400 border-gray-300'
+                                }`}>
+                                  {String.fromCharCode(65 + oIdx)}
+                                </span>
+                                <div className="space-y-1">
+                                  <p className="font-bold text-gray-850">
+                                    {activeReviewLang === 'English' ? option : (optionTamil || option)}
+                                  </p>
+                                  <div className="flex gap-1.5 pt-0.5">
+                                    {isOptionCorrect && <span className="text-[9px] font-bold text-emerald-700 uppercase bg-emerald-100/60 px-1 rounded-sm">Correct Choice</span>}
+                                    {isOptionSelected && <span className="text-[9px] font-bold text-gray-500 uppercase bg-gray-200/60 px-1 rounded-sm">Your Selection</span>}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Explanations Display */}
                     <div className="bg-white border border-gray-200 rounded-md p-4 space-y-2">
@@ -507,11 +515,11 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
 
                       {activeReviewLang === 'English' ? (
                         <div className="space-y-1 leading-relaxed text-gray-650 font-medium">
-                          <p>{q.explanation}</p>
+                          <p>{(q as any).explanation_en || (q as any).explanation || 'No explanation provided.'}</p>
                         </div>
                       ) : (
                         <div className="space-y-1 leading-relaxed text-gray-650 font-medium">
-                          <p>{q.tamilExplanation || q.explanation}</p>
+                          <p>{(q as any).explanation_ta || (q as any).tamilExplanation || (q as any).explanation || 'விளக்கம் வழங்கப்படவில்லை.'}</p>
                         </div>
                       )}
                     </div>
@@ -641,8 +649,15 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
 
           {log.questions.map((q, idx) => {
             const userAnswerIdx = log.answers[q.id];
-            const isCorrect = userAnswerIdx === q.correctOptionIndex;
+            const correctIdx = 'correctOptionIndex' in q ? (q as any).correctOptionIndex : undefined;
+            const isCorrect = correctIdx !== undefined ? userAnswerIdx === correctIdx : true;
             const isSkipped = userAnswerIdx === undefined || userAnswerIdx === -1;
+            const qEn = getQuestionEnText(q);
+            const qTa = getQuestionTaText(q);
+            const optionsEn = isMCQQuestion(q) ? getMCQOptionsEn(q) : [];
+            const optionsTa = isMCQQuestion(q) ? getMCQOptionsTa(q) : [];
+            const expEn = (q as any).explanation_en || (q as any).explanation || 'No explanation provided.';
+            const expTa = (q as any).explanation_ta || (q as any).tamilExplanation;
 
             return (
               <div 
@@ -653,11 +668,11 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-2 mb-3">
                   <div className="space-y-1">
                     <h4 className="text-xs font-black text-slate-900 leading-tight">
-                      Question {idx + 1}: {q.questionText}
+                      Question {idx + 1}: {qEn}
                     </h4>
-                    {q.questionTamilText && (
+                    {qTa && (
                       <p className="text-[11px] text-slate-500 font-sans italic leading-relaxed">
-                        தமிழ்: {q.questionTamilText}
+                        தமிழ்: {qTa}
                       </p>
                     )}
                   </div>
@@ -673,52 +688,54 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                 </div>
 
                 {/* Audit option cells */}
-                <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-                  {q.options.map((option, oIdx) => {
-                    const isOptionCorrect = oIdx === q.correctOptionIndex;
-                    const isOptionSelected = oIdx === userAnswerIdx;
-                    const optionTamil = q.tamilOptions?.[oIdx];
+                {optionsEn.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+                    {optionsEn.map((option, oIdx) => {
+                      const isOptionCorrect = oIdx === correctIdx;
+                      const isOptionSelected = oIdx === userAnswerIdx;
+                      const optionTamil = optionsTa[oIdx];
 
-                    let optionBorder = 'border-slate-200 text-slate-600';
-                    let flagLabel = '';
-                    if (isOptionCorrect) {
-                      optionBorder = 'border-emerald-600 bg-emerald-50/20 text-emerald-950 font-extrabold print-exact';
-                      flagLabel = '✓ Correct';
-                    } else if (isOptionSelected) {
-                      optionBorder = 'border-rose-400 bg-rose-50/20 text-rose-950 font-semibold print-exact';
-                      flagLabel = '✗ Selected';
-                    }
+                      let optionBorder = 'border-slate-200 text-slate-600';
+                      let flagLabel = '';
+                      if (isOptionCorrect) {
+                        optionBorder = 'border-emerald-600 bg-emerald-50/20 text-emerald-950 font-extrabold print-exact';
+                        flagLabel = '✓ Correct';
+                      } else if (isOptionSelected) {
+                        optionBorder = 'border-rose-400 bg-rose-50/20 text-rose-950 font-semibold print-exact';
+                        flagLabel = '✗ Selected';
+                      }
 
-                    return (
-                      <div key={oIdx} className={`border p-2 rounded text-[11px] flex items-center justify-between leading-tight ${optionBorder}`}>
-                        <div>
-                          <span className="font-mono font-black mr-1.5">{String.fromCharCode(65 + oIdx)}.</span>
-                          <span>{option}</span>
-                          {optionTamil && (
-                            <span className="block text-[9.5px] text-slate-450 font-normal italic">
-                              ({optionTamil})
+                      return (
+                        <div key={oIdx} className={`border p-2 rounded text-[11px] flex items-center justify-between leading-tight ${optionBorder}`}>
+                          <div>
+                            <span className="font-mono font-black mr-1.5">{String.fromCharCode(65 + oIdx)}.</span>
+                            <span>{option}</span>
+                            {optionTamil && (
+                              <span className="block text-[9.5px] text-slate-450 font-normal italic">
+                                ({optionTamil})
+                              </span>
+                            )}
+                          </div>
+                          {flagLabel && (
+                            <span className="text-[8px] font-black uppercase tracking-widest shrink-0 ml-1.5 px-1 bg-white/80 border rounded border-slate-300">
+                              {flagLabel}
                             </span>
                           )}
                         </div>
-                        {flagLabel && (
-                          <span className="text-[8px] font-black uppercase tracking-widest shrink-0 ml-1.5 px-1 bg-white/80 border rounded border-slate-300">
-                            {flagLabel}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Question syllabus explanation */}
                 <div className="bg-slate-50 border border-slate-200 rounded p-3 text-[10.5px] text-slate-700 leading-relaxed print-exact">
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-400 block mb-1">
                     Syllabus Assessment Explanations:
                   </span>
-                  <p className="font-medium text-slate-700">{q.explanation}</p>
-                  {q.tamilExplanation && (
+                  <p className="font-medium text-slate-700">{expEn}</p>
+                  {expTa && (
                     <p className="mt-1.5 pt-1.5 border-t border-slate-200 italic font-sans text-slate-500 leading-normal">
-                      தமிழ் விளக்கம்: {q.tamilExplanation}
+                      தமிழ் விளக்கம்: {expTa}
                     </p>
                   )}
                 </div>

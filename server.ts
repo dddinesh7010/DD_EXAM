@@ -656,11 +656,12 @@ const app = express();
         const gap = targetCount - cleanedQuestions.length;
         console.log(`[Deduplicator Text] Deduplication resulted in ${cleanedQuestions.length} questions, which is ${gap} short of requested ${targetCount}. Generating non-repetitive fallback fillers...`);
         const filler = generateOfflineQuestions(topic || 'General Syllabus', gap * 2, difficulty || 'Mixed');
-        const existingKeys = new Set(cleanedQuestions.map(q => q.questionText.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        const getQKey = (q: any) => ((q.questionText || q.question_en || '') as string).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const existingKeys = new Set(cleanedQuestions.map(getQKey));
         
         for (const f of filler) {
           if (cleanedQuestions.length >= targetCount) break;
-          const key = f.questionText.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const key = getQKey(f);
           if (!existingKeys.has(key)) {
             cleanedQuestions.push(f);
             existingKeys.add(key);
@@ -940,11 +941,12 @@ CRITICAL TRUNCATION REQUIREMENT: Keep both the "explanation" and "tamilExplanati
         const gap = questionCount - cleanedAndDeduplicated.length;
         console.log(`[Deduplicator PDF] Deduplication resulted in ${cleanedAndDeduplicated.length} questions, which is ${gap} short of requested ${questionCount}. Generating non-repetitive fallback fillers...`);
         const filler = generateOfflineQuestions(topic || 'General Syllabus', gap * 2, difficulty || 'Mixed');
-        const existingKeys = new Set(cleanedAndDeduplicated.map(q => q.questionText.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        const getQKey = (q: any) => ((q.questionText || q.question_en || '') as string).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const existingKeys = new Set(cleanedAndDeduplicated.map(getQKey));
         
         for (const f of filler) {
           if (cleanedAndDeduplicated.length >= questionCount) break;
-          const key = f.questionText.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const key = getQKey(f);
           if (!existingKeys.has(key)) {
             cleanedAndDeduplicated.push(f);
             existingKeys.add(key);
@@ -1131,11 +1133,12 @@ Each question MUST:
         const gap = questionCount - cleanedQuestions.length;
         console.log(`[Deduplicator Topic] Deduplication resulted in ${cleanedQuestions.length} questions, which is ${gap} short of requested ${questionCount}. Generating non-repetitive fallback fillers...`);
         const filler = generateOfflineQuestions(topic || 'General Syllabus', gap * 2, difficulty || 'Mixed');
-        const existingKeys = new Set(cleanedQuestions.map(q => q.questionText.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        const getQKey = (q: any) => ((q.questionText || q.question_en || '') as string).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const existingKeys = new Set(cleanedQuestions.map(getQKey));
         
         for (const f of filler) {
           if (cleanedQuestions.length >= questionCount) break;
-          const key = f.questionText.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const key = getQKey(f);
           if (!existingKeys.has(key)) {
             cleanedQuestions.push(f);
             existingKeys.add(key);

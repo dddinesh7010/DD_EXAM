@@ -4,41 +4,95 @@ export interface User {
   name: string;
 }
 
+export type QuestionType = 'mcq' | 'match' | 'passage';
+
 export interface MatchItem {
   id: string;
-  text: string;
-  textTa?: string;
+  text_en: string;
+  text_ta: string;
 }
 
-export interface Question {
+export interface MatchQuestion {
   id: string;
-  type?: 'mcq' | 'match' | 'passage' | string;
-  questionText: string;
+  type: 'match';
+  question_en: string;
+  question_ta?: string;
+  displayMode?: 'interactive' | 'static' | string;
+  interactionType?: 'dropdown' | 'drag' | 'line' | string;
+  leftItems: MatchItem[];
+  rightItems: MatchItem[];
+  correctAnswer: { [leftId: string]: string }; // e.g. { "A": "3", "B": "2", "C": "1", "D": "4" }
+  marks?: number;
+  negativeMarks?: number;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  year?: string;
+  topic?: string;
+  explanation_en?: string;
+  explanation_ta?: string;
+  // Legacy compatibility getters/fields if needed
+  questionText?: string;
   questionTamilText?: string;
-  options: string[];
+  correctOptionIndex?: number;
+}
+
+export interface MCQQuestion {
+  id: string;
+  type?: 'mcq';
+  question_en?: string;
+  question_ta?: string;
+  options_en?: string[];
+  options_ta?: string[];
+  correctOptionIndex?: number;
+  correctAnswer_en?: string;
+  correctAnswer_ta?: string;
+  marks?: number;
+  negativeMarks?: number;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  year?: string;
+  topic?: string;
+  explanation_en?: string;
+  explanation_ta?: string;
+  // Legacy compatibility fields
+  questionText?: string;
+  questionTamilText?: string;
+  options?: string[];
   tamilOptions?: string[];
-  correctOptionIndex: number;
-  explanation: string;
+  explanation?: string;
   tamilExplanation?: string;
-  topic: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  // Match the following support
-  leftItems?: MatchItem[];
-  rightItems?: MatchItem[];
-  correctMatchAnswer?: Record<string, string>;
-  // Passage support
-  passageTitle?: string;
-  passageEn?: string;
-  passageTa?: string;
+}
+
+export interface PassageQuestion {
+  id: string;
+  type: 'passage';
+  title_en: string;
+  title_ta?: string;
+  layout?: 'split' | 'stacked' | string;
+  stickyPassage?: boolean;
+  passage_en: string;
+  passage_ta?: string;
+  questions: MCQQuestion[];
+  marks?: number;
+  negativeMarks?: number;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  year?: string;
+  topic?: string;
+}
+
+export type Question = MCQQuestion | MatchQuestion | PassageQuestion;
+
+export interface QuestionPaperData {
+  title_en: string;
+  title_ta?: string;
+  questions: Question[];
 }
 
 export interface ExamSettings {
-  defaultLanguage: 'English' | 'Tamil';
+  defaultLanguage: 'English' | 'Tamil' | 'Bilingual';
   negativeMarking: number; // e.g., 0.25, 0.33, or 0
   positiveMarking: number; // e.g., 1 or 2
   warnOnTabLeave: boolean;
   enableSoundAlerts: boolean;
-  timeLimitPerQuestion: number; // in seconds (for customizable presets, e.g. 60)
+  timeLimitPerQuestion: number; // in seconds
 }
 
 export interface ExamSession {
@@ -49,7 +103,7 @@ export interface ExamSession {
   questions: Question[];
   timeLimit: number; // in seconds
   startedAt: number; // timestamp
-  answers: { [questionId: string]: number }; // -1 or index of option
+  answers: { [questionId: string]: any }; // option index OR match map { A: "3", B: "2" }
   bookmarks: { [questionId: string]: boolean };
   visited: { [questionId: string]: boolean };
   timeSpent: { [questionId: string]: number }; // seconds spent per question
@@ -77,5 +131,5 @@ export interface ExamHistoryLog {
   date: string; // locale string
   topicStats: TopicStat[];
   questions: Question[];
-  answers: { [questionId: string]: number };
+  answers: { [questionId: string]: any };
 }
