@@ -953,25 +953,6 @@ export default function UploadPDF({
                           </div>
                         </div>
                       </div>
-
-                      {/* Format/Count input */}
-                      <div className="relative flex items-center">
-                        <input
-                          type="text"
-                          value={jsonCustomCountInput}
-                          onChange={(e) => {
-                            setJsonCustomCountInput(e.target.value);
-                            setJsonRangeStart('');
-                            setJsonRangeEnd('');
-                          }}
-                          placeholder={`Or enter format e.g. 50 - 100 or 25`}
-                          className="w-full pl-2.5 pr-12 py-1 bg-gray-50 border border-gray-300 rounded text-xs font-bold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          id="json-custom-question-number-input"
-                        />
-                        <span className="absolute right-2 text-xs font-bold text-gray-400 pointer-events-none">
-                          Qs
-                        </span>
-                      </div>
                     </div>
                   </div>
 

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { Question, ExamHistoryLog, User, QuestionPaperData } from '../types';
 import UploadPDF from './UploadPDF';
-import { QuestionPaperViewer } from './QuestionPaperViewer';
 import { CCSEIVGT_2025_PAPER } from '../data/defaultQuestions';
 import { getPendingSyncResults, syncPendingResults } from '../utils/offlineManager';
 import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
@@ -592,7 +591,7 @@ p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்ந�
                 {/* Range Selection Inputs (From Q# - To Q#) */}
                 <div className="space-y-1">
                   <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                    Option A: Select Question Range (e.g., 50 - 100)
+                    Select Question Range (e.g., From Q# 50 To Q# 100)
                   </span>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
@@ -634,30 +633,6 @@ p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்ந�
                         />
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Single Count / Flexible Text Range Input */}
-                <div className="space-y-1">
-                  <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                    Option B: Or Enter Count / Format (e.g. "50 - 100" or "35")
-                  </span>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      value={pendingCustomCountInput}
-                      onChange={(e) => {
-                        setPendingCustomCountInput(e.target.value);
-                        setPendingRangeStart('');
-                        setPendingRangeEnd('');
-                      }}
-                      placeholder={`e.g. 50 - 100 or 25`}
-                      className="w-full pl-3 pr-16 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
-                      id="custom-question-number-input"
-                    />
-                    <span className="absolute right-3 text-xs font-bold text-gray-400 pointer-events-none">
-                      / {pendingExam.questions.length} Qs
-                    </span>
                   </div>
                 </div>
 
