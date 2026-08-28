@@ -298,7 +298,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
     playSynthesizedSound(800, 0.05);
   };
 
-  const markAsVisited = (qId: string) => {
+  const markAsVisited = (qId: string | number) => {
     onUpdateSession((prev) => {
       if (!prev) return prev;
       if (!prev.visited[qId]) {
@@ -407,7 +407,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
   );
 
   // Helper to determine single button styling in palette grid
-  const getPaletteStyle = (qId: string, idx: number) => {
+  const getPaletteStyle = (qId: string | number, idx: number) => {
     const isCurrent = idx === currentIndex;
     const isAnswered = session.answers[qId] !== undefined && session.answers[qId] !== -1;
     const isBookmarked = session.bookmarks[qId] === true;
@@ -668,28 +668,28 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
           </div>
 
           {/* Actual Active Question Sheet Container */}
-          <div className="p-5 sm:p-8 flex-1 overflow-y-auto bg-slate-50/70" id="cbt-question-workspace">
+          <div className="p-6 sm:p-8 lg:p-10 flex-1 overflow-y-auto bg-slate-50/80" id="cbt-question-workspace">
             {/* Top Question Header metadata bar */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 mb-6 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="bg-blue-600 text-white font-mono text-xs font-black py-1 px-3 rounded-lg shadow-2xs uppercase tracking-wider">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 mb-8 shadow-xs flex flex-wrap items-center justify-between gap-3.5">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="bg-blue-600 text-white font-mono text-xs font-black py-1.5 px-3.5 rounded-xl shadow-2xs uppercase tracking-wider">
                   Q {currentIndex + 1} of {totalQuestions}
                 </span>
-                <span className="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/90 px-3 py-1.5 rounded-xl">
                   {currentQuestion.topic || 'General Syllabus'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-lg border ${
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border ${
                   currentQuestion.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                   currentQuestion.difficulty === 'Hard' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                   'bg-amber-50 text-amber-700 border-amber-200'
                 }`}>
                   {currentQuestion.difficulty || 'Medium'}
                 </span>
-                <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
-                  Marks: <span className="text-emerald-600 font-extrabold">+{settings.positiveMarking || 1}</span>
-                  {settings.negativeMarking > 0 && <span className="text-rose-500 font-extrabold">, -{settings.negativeMarking}</span>}
+                <span className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200/90 px-3 py-1.5 rounded-xl">
+                  Marks: <span className="text-emerald-600 font-black">+{settings.positiveMarking || 1}</span>
+                  {settings.negativeMarking > 0 && <span className="text-rose-500 font-black">, -{settings.negativeMarking}</span>}
                 </span>
               </div>
             </div>
@@ -731,25 +731,79 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 }}
               />
             ) : (
-              <div className={`grid gap-8 ${
+              <div className={`grid gap-8 lg:gap-12 ${
                 displayMode === 'bilingual' 
-                  ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200/80' 
+                  ? 'grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200' 
                   : 'grid-cols-1'
               }`}>
                 
                 {/* Left Column / English Panel */}
                 {(displayMode === 'bilingual' || displayMode === 'english') && (
-                  <div className={`space-y-6 ${displayMode === 'bilingual' ? 'lg:pr-4' : 'max-w-4xl mx-auto w-full'}`}>
+                  <div className={`space-y-6 ${displayMode === 'bilingual' ? 'lg:pr-6' : 'max-w-4xl mx-auto w-full'}`}>
+                    {/* Optional Passage Box */}
+                    {((currentQuestion as any).passage || (currentQuestion as any).passage_en) && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-2.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded">
+                          Reading Comprehension Passage
+                        </span>
+                        <p className="text-sm sm:text-base text-slate-800 leading-relaxed font-serif">
+                          {(currentQuestion as any).passage || (currentQuestion as any).passage_en}
+                        </p>
+                      </div>
+                    )}
+
                     {/* English Question Text Box */}
-                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-2xs space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 bg-blue-50 px-3 py-1 rounded-lg font-mono border border-blue-100">
-                          English Question Stem
+                          {Boolean((currentQuestion as any).assertion) ? 'Assertion & Reason Stem' :
+                           Boolean((currentQuestion as any).statements) ? 'Statement Question' :
+                           'English Question Stem'}
                         </span>
                       </div>
-                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed sm:leading-loose tracking-normal ${getQuestionFontSize()}`}>
                         {getQuestionEnText(currentQuestion)}
                       </h3>
+
+                      {/* Assertion & Reason Dedicated English Blocks */}
+                      {Boolean((currentQuestion as any).assertion || (currentQuestion as any).reason) && (
+                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                          {(currentQuestion as any).assertion && (
+                            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded font-mono">
+                                Assertion (A)
+                              </span>
+                              <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed">
+                                {(currentQuestion as any).assertion}
+                              </p>
+                            </div>
+                          )}
+                          {(currentQuestion as any).reason && (
+                            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono">
+                                Reason (R)
+                              </span>
+                              <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed">
+                                {(currentQuestion as any).reason}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Statements Dedicated English Blocks */}
+                      {Array.isArray((currentQuestion as any).statements) && (currentQuestion as any).statements.length > 0 && (
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          {(currentQuestion as any).statements.map((stmt: string, sIdx: number) => (
+                            <div key={sIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                              <p className="text-xs sm:text-sm font-bold text-slate-900 leading-relaxed">
+                                <span className="font-mono text-blue-600 font-black mr-2">({sIdx + 1})</span>
+                                {stmt}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* English Options */}
@@ -766,7 +820,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-3.5">
+                      <div className="space-y-3.5 sm:space-y-4">
                         {getMCQOptionsEn(currentQuestion as any).map((option, idx) => {
                           const isSelected = session.answers[currentQuestion.id] === idx;
                           return (
@@ -775,8 +829,8 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                               onClick={() => selectOption(idx)}
                               className={`flex items-center gap-4 p-4.5 sm:p-5 rounded-2xl border transition-all cursor-pointer select-none ${
                                 isSelected
-                                  ? 'border-blue-600 bg-blue-50/70 text-blue-950 shadow-xs ring-2 ring-blue-500/20'
-                                  : 'border-slate-200/90 hover:border-blue-300 hover:bg-slate-50/80 text-slate-800 bg-white shadow-2xs'
+                                  ? 'border-blue-600 bg-blue-50/80 text-blue-950 shadow-xs ring-2 ring-blue-500/25'
+                                  : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50/90 text-slate-800 bg-white shadow-2xs'
                               }`}
                             >
                               {/* Radio Input & Alphabet Circle */}
@@ -787,7 +841,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                                   readOnly
                                   className="h-4.5 w-4.5 text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
                                 />
-                                <span className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs font-mono font-black transition-all ${
+                                <span className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center border text-xs sm:text-sm font-mono font-black transition-all ${
                                   isSelected
                                     ? 'bg-blue-600 text-white border-blue-600 shadow-xs scale-105'
                                     : 'bg-slate-100 text-slate-600 border-slate-300'
@@ -809,16 +863,70 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                 {/* Right Column / Tamil Panel */}
                 {(displayMode === 'bilingual' || displayMode === 'tamil') && (
                   <div className={`space-y-6 ${displayMode === 'bilingual' ? 'lg:pl-8' : 'max-w-4xl mx-auto w-full'}`}>
+                    {/* Optional Passage Box Tamil */}
+                    {((currentQuestion as any).passageTamilText || (currentQuestion as any).passage_ta || (currentQuestion as any).passage) && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-2.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded">
+                          படித்துப் புரிதல் பத்தி (Passage)
+                        </span>
+                        <p className="text-sm sm:text-base text-slate-800 leading-relaxed font-sans">
+                          {(currentQuestion as any).passageTamilText || (currentQuestion as any).passage_ta || (currentQuestion as any).passage}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Tamil Question Text Box */}
-                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-2xs space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg font-mono border border-emerald-100">
-                          தமிழ் வடிவம் (Tamil Version)
+                          {Boolean((currentQuestion as any).assertion || (currentQuestion as any).assertionTamilText) ? 'கூற்று மற்றும் காரணம்' :
+                           Boolean((currentQuestion as any).statements || (currentQuestion as any).tamilStatements) ? 'கூற்றுகள் வினா' :
+                           'தமிழ் வடிவம் (Tamil Version)'}
                         </span>
                       </div>
-                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed tracking-normal ${getQuestionFontSize()}`}>
+                      <h3 className={`font-sans font-bold text-slate-900 leading-relaxed sm:leading-loose tracking-normal ${getQuestionFontSize()}`}>
                         {getQuestionTaText(currentQuestion) || getQuestionEnText(currentQuestion)}
                       </h3>
+
+                      {/* Assertion & Reason Dedicated Tamil Blocks */}
+                      {Boolean((currentQuestion as any).assertion || (currentQuestion as any).assertionTamilText || (currentQuestion as any).reason || (currentQuestion as any).reasonTamilText) && (
+                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                          {((currentQuestion as any).assertionTamilText || (currentQuestion as any).assertion) && (
+                            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded font-mono">
+                                கூற்று (A)
+                              </span>
+                              <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed font-sans">
+                                {(currentQuestion as any).assertionTamilText || (currentQuestion as any).assertion}
+                              </p>
+                            </div>
+                          )}
+                          {((currentQuestion as any).reasonTamilText || (currentQuestion as any).reason) && (
+                            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono">
+                                காரணம் (R)
+                              </span>
+                              <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed font-sans">
+                                {(currentQuestion as any).reasonTamilText || (currentQuestion as any).reason}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Statements Dedicated Tamil Blocks */}
+                      {(Array.isArray((currentQuestion as any).tamilStatements) || Array.isArray((currentQuestion as any).statements)) && (
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          {(((currentQuestion as any).tamilStatements || (currentQuestion as any).statements) as string[]).map((stmt: string, sIdx: number) => (
+                            <div key={sIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                              <p className="text-xs sm:text-sm font-bold text-slate-900 leading-relaxed font-sans">
+                                <span className="font-mono text-emerald-600 font-black mr-2">({sIdx + 1})</span>
+                                {stmt}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Tamil Options */}
@@ -835,7 +943,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-3.5">
+                      <div className="space-y-3.5 sm:space-y-4">
                         {getMCQOptionsEn(currentQuestion as any).map((option, idx) => {
                           const isSelected = session.answers[currentQuestion.id] === idx;
                           const optionsTa = getMCQOptionsTa(currentQuestion as any);
@@ -846,8 +954,8 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                               onClick={() => selectOption(idx)}
                               className={`flex items-center gap-4 p-4.5 sm:p-5 rounded-2xl border transition-all cursor-pointer select-none ${
                                 isSelected
-                                  ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20'
-                                  : 'border-slate-200/90 hover:border-emerald-300 hover:bg-slate-50/80 text-slate-800 bg-white shadow-2xs'
+                                  ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 shadow-xs ring-2 ring-emerald-500/25'
+                                  : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50/90 text-slate-800 bg-white shadow-2xs'
                               }`}
                             >
                               {/* Radio Input & Alphabet Circle */}
@@ -858,7 +966,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                                   readOnly
                                   className="h-4.5 w-4.5 text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
                                 />
-                                <span className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs font-mono font-black transition-all ${
+                                <span className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center border text-xs sm:text-sm font-mono font-black transition-all ${
                                   isSelected
                                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs scale-105'
                                     : 'bg-slate-100 text-slate-600 border-slate-300'
@@ -866,7 +974,7 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                                   {String.fromCharCode(65 + idx)}
                                 </span>
                               </div>
-                              <span className={`font-semibold text-slate-900 leading-relaxed ${getOptionsFontSize()}`}>
+                              <span className={`font-semibold text-slate-900 leading-relaxed font-sans ${getOptionsFontSize()}`}>
                                 {optionTamil}
                               </span>
                             </div>

@@ -71,37 +71,37 @@ export const PassageQuestionView: React.FC<PassageQuestionViewProps> = ({
       </div>
 
       {/* Main Content Layout Container */}
-      <div className={passageLayout === 'split' ? 'grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-200' : 'block p-4 sm:p-6 space-y-6'}>
+      <div className={passageLayout === 'split' ? 'grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-200' : 'block p-6 sm:p-8 space-y-8'}>
         {/* Left Column: Passage Box */}
-        <div className={passageLayout === 'split' ? 'lg:col-span-5 p-5 bg-slate-50/80 sticky top-16 max-h-[80vh] overflow-y-auto space-y-4' : 'bg-slate-50 p-5 rounded-xl border border-slate-200/80 space-y-4'}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+        <div className={passageLayout === 'split' ? 'lg:col-span-5 p-6 sm:p-7 bg-slate-50/80 sticky top-16 max-h-[80vh] overflow-y-auto space-y-5' : 'bg-slate-50/90 p-6 rounded-2xl border border-slate-200/90 space-y-5'}>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <h4 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-blue-600" />
               <span>Comprehension Passage</span>
             </h4>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded">
-              Sticky Passage
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-2.5 py-0.5 rounded-md">
+              Reference
             </span>
           </div>
 
           <div className="space-y-4 text-slate-800">
             {(displayMode === 'english' || displayMode === 'bilingual') && (
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest block mb-1">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-1.5">
+                <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest block">
                   English Passage
                 </span>
-                <p className="text-sm sm:text-base leading-relaxed text-slate-800 font-medium">
+                <p className="text-sm sm:text-base leading-relaxed sm:leading-loose text-slate-900 font-medium">
                   {passageQuestion.passage_en}
                 </p>
               </div>
             )}
 
             {(displayMode === 'tamil' || displayMode === 'bilingual') && passageQuestion.passage_ta && (
-              <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200/70 shadow-2xs">
-                <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest block mb-1">
+              <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200/70 shadow-2xs space-y-1.5">
+                <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
                   தமிழ் உரைநடை
                 </span>
-                <p className="text-sm sm:text-base leading-relaxed text-slate-800 font-semibold font-sans">
+                <p className="text-sm sm:text-base leading-relaxed sm:leading-loose text-slate-900 font-semibold font-sans">
                   {passageQuestion.passage_ta}
                 </p>
               </div>
@@ -110,9 +110,9 @@ export const PassageQuestionView: React.FC<PassageQuestionViewProps> = ({
         </div>
 
         {/* Right Column: Sub-Questions List */}
-        <div className={passageLayout === 'split' ? 'lg:col-span-7 p-5 bg-white space-y-6' : 'space-y-6'}>
-          <div className="pb-2 border-b border-slate-100 flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+        <div className={passageLayout === 'split' ? 'lg:col-span-7 p-6 sm:p-8 bg-white space-y-8' : 'space-y-8'}>
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+            <h4 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
               Questions Based on Above Passage
             </h4>
             <span className="text-xs text-slate-500 font-semibold">
@@ -120,7 +120,7 @@ export const PassageQuestionView: React.FC<PassageQuestionViewProps> = ({
             </span>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-8">
             {subQuestions.map((subQ, subIdx) => {
               const subAnswer = userAnswers[subQ.id];
 

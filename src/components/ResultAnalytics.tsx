@@ -11,7 +11,7 @@ interface ResultAnalyticsProps {
 }
 
 export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam }: ResultAnalyticsProps) {
-  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
+  const [expandedQuestionId, setExpandedQuestionId] = useState<string | number | null>(null);
   const [activeReviewLang, setActiveReviewLang] = useState<'English' | 'Tamil'>('English');
   const [showOnlyQuestions, setShowOnlyQuestions] = useState(false);
 
@@ -28,7 +28,7 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
     }
   };
 
-  const toggleQuestionExpand = (qId: string) => {
+  const toggleQuestionExpand = (qId: string | number) => {
     setExpandedQuestionId(expandedQuestionId === qId ? null : qId);
   };
 
@@ -382,74 +382,139 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
             return (
               <div
                 key={q.id}
-                className={`border rounded-lg overflow-hidden transition-all ${
-                  isExpanded && !showOnlyQuestions ? 'border-gray-400 bg-white shadow-xs' : 'border-gray-200 hover:bg-gray-50/30'
+                className={`border rounded-2xl overflow-hidden transition-all mb-4 ${
+                  isExpanded && !showOnlyQuestions ? 'border-slate-300 bg-white shadow-xs' : 'border-slate-200 hover:bg-slate-50/40 bg-white'
                 }`}
               >
                 {/* Expand Header */}
                 <div
                   onClick={() => !showOnlyQuestions && toggleQuestionExpand(q.id)}
-                  className={`p-4 flex items-center justify-between gap-4 select-none ${showOnlyQuestions ? 'cursor-default' : 'cursor-pointer'}`}
+                  className={`p-5 flex items-center justify-between gap-4 select-none ${showOnlyQuestions ? 'cursor-default' : 'cursor-pointer'}`}
                 >
-                  <div className="flex items-start gap-3 max-w-[85%]">
+                  <div className="flex items-start gap-3.5 max-w-[85%]">
                     {isSkipped ? (
-                      <AlertCircle className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
                     ) : isCorrect ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                     ) : (
                       <XCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                     )}
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800 leading-normal">
-                        Question {idx + 1}: {activeReviewLang === 'English' ? qEn : (qTa || qEn)}
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
+                          (q as any).questionType === 'assertion_reason' || Boolean((q as any).assertion)
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : (q as any).questionType === 'statement_based' || Boolean((q as any).statements)
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : (q as any).questionType === 'passage_mcq' || Boolean((q as any).passage)
+                            ? 'bg-cyan-50 text-cyan-700 border-cyan-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {(q as any).questionType === 'assertion_reason' || Boolean((q as any).assertion)
+                            ? 'Assertion & Reason'
+                            : (q as any).questionType === 'statement_based' || Boolean((q as any).statements)
+                            ? 'Statement Based'
+                            : (q as any).questionType === 'passage_mcq' || Boolean((q as any).passage)
+                            ? 'Passage MCQ'
+                            : 'MCQ'}
+                        </span>
+                      </div>
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-relaxed">
+                        <span className="font-mono text-blue-600 mr-1.5 font-black">Q{idx + 1}.</span>
+                        {activeReviewLang === 'English' ? qEn : (qTa || qEn)}
                       </h4>
+
+                      {/* Review Mode Assertion & Reason display */}
+                      {Boolean((q as any).assertion || (q as any).reason) && (
+                        <div className="mt-3 space-y-2">
+                          {((q as any).assertion || (q as any).assertionTamilText) && (
+                            <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-xl">
+                              <span className="text-[10px] font-black uppercase text-indigo-800 tracking-wider">
+                                {activeReviewLang === 'English' ? 'Assertion (A):' : 'கூற்று (A):'}
+                              </span>
+                              <p className="text-xs sm:text-sm font-bold text-indigo-950 mt-0.5">
+                                {activeReviewLang === 'English'
+                                  ? (q as any).assertion
+                                  : ((q as any).assertionTamilText || (q as any).assertion)}
+                              </p>
+                            </div>
+                          )}
+                          {((q as any).reason || (q as any).reasonTamilText) && (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
+                              <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
+                                {activeReviewLang === 'English' ? 'Reason (R):' : 'காரணம் (R):'}
+                              </span>
+                              <p className="text-xs sm:text-sm font-bold text-amber-950 mt-0.5">
+                                {activeReviewLang === 'English'
+                                  ? (q as any).reason
+                                  : ((q as any).reasonTamilText || (q as any).reason)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Review Mode Statements display */}
+                      {Array.isArray((q as any).statements) && (q as any).statements.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {(q as any).statements.map((stmt: string, sIdx: number) => {
+                            const stmtTa = (q as any).tamilStatements?.[sIdx];
+                            return (
+                              <div key={sIdx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800">
+                                <span className="font-mono text-blue-600 font-black mr-2">({sIdx + 1})</span>
+                                {activeReviewLang === 'English' ? stmt : (stmtTa || stmt)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {!showOnlyQuestions && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[9px] font-bold uppercase tracking-wider py-0.5 px-2 rounded-sm ${
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className={`text-[10px] font-black uppercase tracking-wider py-1 px-2.5 rounded-lg border ${
                         isSkipped
-                          ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                          ? 'bg-slate-100 text-slate-600 border-slate-200'
                           : isCorrect
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}>
                         {isSkipped ? 'Skipped' : isCorrect ? 'Correct' : 'Wrong'}
                       </span>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                     </div>
                   )}
                 </div>
 
                 {/* Options list for "Question & Options Only" mode */}
                 {showOnlyQuestions && optionsEn.length > 0 && (
-                  <div className="p-4 pt-0 border-t-0 bg-white/50 space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                  <div className="p-5 pt-0 border-t-0 bg-white/50 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
                       {optionsEn.map((option, oIdx) => {
                         const optionTamil = optionsTa[oIdx];
                         const isOptionCorrect = oIdx === correctIdx;
                         const isOptionSelected = oIdx === userAnswerIdx;
                         
-                        let cardStyle = 'border-slate-200 bg-slate-50/50 text-slate-700';
+                        let cardStyle = 'border-slate-200 bg-slate-50/60 text-slate-800';
                         if (isOptionCorrect) {
-                          cardStyle = 'border-emerald-400 bg-emerald-50/30 text-emerald-950 font-bold';
+                          cardStyle = 'border-emerald-400 bg-emerald-50/40 text-emerald-950 font-bold ring-1 ring-emerald-400/30';
                         } else if (isOptionSelected) {
-                          cardStyle = 'border-rose-400 bg-rose-50/20 text-rose-950 font-bold';
+                          cardStyle = 'border-rose-400 bg-rose-50/30 text-rose-950 font-bold ring-1 ring-rose-400/30';
                         }
                         
                         return (
-                          <div key={oIdx} className={`p-2.5 rounded-lg text-xs border flex items-center gap-2.5 ${cardStyle}`}>
-                            <span className={`w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 border text-[10px] font-mono font-bold ${
+                          <div key={oIdx} className={`p-3.5 rounded-xl text-xs sm:text-sm border flex items-center gap-3 ${cardStyle}`}>
+                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border text-xs font-mono font-black ${
                               isOptionCorrect
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                                 : isOptionSelected
-                                ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                                : 'bg-white text-slate-400 border-slate-300'
+                                ? 'bg-rose-500 text-white border-rose-500 shadow-xs'
+                                : 'bg-white text-slate-500 border-slate-300'
                             }`}>
                               {String.fromCharCode(65 + oIdx)}
                             </span>
-                            <span className="truncate leading-tight">
+                            <span className="leading-snug">
                               {activeReviewLang === 'English' ? option : (optionTamil || option)}
                             </span>
                           </div>
@@ -461,42 +526,42 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
 
                 {/* Expanded Details Body */}
                 {isExpanded && !showOnlyQuestions && (
-                  <div className="p-5 bg-gray-50/50 border-t border-gray-200 space-y-4 text-sm">
+                  <div className="p-6 bg-slate-50/70 border-t border-slate-200 space-y-5 text-sm">
                     {/* Options Audit Table */}
                     {optionsEn.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Options Audit</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-3">
+                        <p className="text-[10.5px] font-black text-slate-500 uppercase tracking-widest">Options Audit</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                           {optionsEn.map((option, oIdx) => {
                             const isOptionCorrect = oIdx === correctIdx;
                             const isOptionSelected = oIdx === userAnswerIdx;
                             const optionTamil = optionsTa[oIdx];
 
-                            let cardBorder = 'border-gray-200 bg-white text-gray-600';
+                            let cardBorder = 'border-slate-200 bg-white text-slate-700';
                             if (isOptionCorrect) {
-                              cardBorder = 'border-emerald-500 bg-emerald-50/20 text-emerald-950 ring-1 ring-emerald-500 border-2';
+                              cardBorder = 'border-emerald-500 bg-emerald-50/40 text-emerald-950 ring-1 ring-emerald-500 font-medium';
                             } else if (isOptionSelected) {
-                              cardBorder = 'border-rose-400 bg-rose-50/20 text-rose-950 ring-1 ring-rose-400 border-2';
+                              cardBorder = 'border-rose-400 bg-rose-50/40 text-rose-950 ring-1 ring-rose-400 font-medium';
                             }
 
                             return (
-                              <div key={oIdx} className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 transition-all ${cardBorder}`}>
-                                <span className={`w-5.5 h-5.5 rounded-full flex items-center justify-center shrink-0 border font-mono font-bold ${
+                              <div key={oIdx} className={`p-4 rounded-xl text-xs sm:text-sm flex items-start gap-3 transition-all border ${cardBorder}`}>
+                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border font-mono font-black text-xs ${
                                   isOptionCorrect
                                     ? 'bg-emerald-600 text-white border-emerald-600'
                                     : isOptionSelected
                                     ? 'bg-rose-500 text-white border-rose-500'
-                                    : 'bg-gray-100 text-gray-400 border-gray-300'
+                                    : 'bg-slate-100 text-slate-500 border-slate-300'
                                 }`}>
                                   {String.fromCharCode(65 + oIdx)}
                                 </span>
-                                <div className="space-y-1">
-                                  <p className="font-bold text-gray-850">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <p className="font-semibold text-slate-900 leading-snug">
                                     {activeReviewLang === 'English' ? option : (optionTamil || option)}
                                   </p>
-                                  <div className="flex gap-1.5 pt-0.5">
-                                    {isOptionCorrect && <span className="text-[9px] font-bold text-emerald-700 uppercase bg-emerald-100/60 px-1 rounded-sm">Correct Choice</span>}
-                                    {isOptionSelected && <span className="text-[9px] font-bold text-gray-500 uppercase bg-gray-200/60 px-1 rounded-sm">Your Selection</span>}
+                                  <div className="flex gap-2 pt-1">
+                                    {isOptionCorrect && <span className="text-[9.5px] font-black text-emerald-700 uppercase bg-emerald-100/80 px-1.5 py-0.5 rounded-md">Correct Choice</span>}
+                                    {isOptionSelected && <span className="text-[9.5px] font-black text-slate-600 uppercase bg-slate-200 px-1.5 py-0.5 rounded-md">Your Selection</span>}
                                   </div>
                                 </div>
                               </div>
@@ -507,28 +572,28 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                     )}
 
                     {/* Explanations Display */}
-                    <div className="bg-white border border-gray-200 rounded-md p-4 space-y-2">
-                      <div className="flex items-center gap-1.5 border-b border-gray-150 pb-2">
-                        <AlertCircle className="w-4 h-4 text-gray-400 shrink-0" />
-                        <h5 className="font-bold text-[10px] text-gray-400 uppercase tracking-wider">Syllabus Explanation Notes</h5>
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                        <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                        <h5 className="font-black text-[10.5px] text-slate-500 uppercase tracking-wider">Syllabus Explanation Notes</h5>
                       </div>
 
                       {activeReviewLang === 'English' ? (
-                        <div className="space-y-1 leading-relaxed text-gray-650 font-medium">
+                        <div className="space-y-1.5 leading-relaxed text-slate-700 font-medium">
                           <p>{(q as any).explanation_en || (q as any).explanation || 'No explanation provided.'}</p>
                         </div>
                       ) : (
-                        <div className="space-y-1 leading-relaxed text-gray-650 font-medium">
+                        <div className="space-y-1.5 leading-relaxed text-slate-700 font-medium font-sans">
                           <p>{(q as any).explanation_ta || (q as any).tamilExplanation || (q as any).explanation || 'விளக்கம் வழங்கப்படவில்லை.'}</p>
                         </div>
                       )}
                     </div>
 
                     {/* Tags Display */}
-                    <div className="flex flex-wrap gap-2 pt-1 text-[10px] font-bold text-gray-450 uppercase tracking-widest">
-                      <span>Category: <strong className="text-gray-700 font-bold">{q.topic}</strong></span>
+                    <div className="flex flex-wrap gap-3 pt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <span>Category: <strong className="text-slate-800 font-bold">{q.topic}</strong></span>
                       <span>•</span>
-                      <span>Difficulty Audit: <strong className="text-gray-700 font-bold">{q.difficulty}</strong></span>
+                      <span>Difficulty: <strong className="text-slate-800 font-bold">{q.difficulty}</strong></span>
                     </div>
                   </div>
                 )}

@@ -10,7 +10,7 @@ interface TimeSpentBarProps {
 }
 
 interface BarData {
-  id: string;
+  id: string | number;
   index: number;
   label: string;
   seconds: number;

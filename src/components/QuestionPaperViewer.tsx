@@ -94,11 +94,11 @@ export const QuestionPaperViewer: React.FC<QuestionPaperViewerProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const handleMCQSelect = (qId: string, optIdx: number) => {
+  const handleMCQSelect = (qId: string | number, optIdx: number) => {
     setUserAnswers((prev) => ({ ...prev, [qId]: optIdx }));
   };
 
-  const handleMatchSelect = (matchQId: string, leftId: string, rightId: string) => {
+  const handleMatchSelect = (matchQId: string | number, leftId: string, rightId: string) => {
     setUserAnswers((prev) => ({
       ...prev,
       [matchQId]: {

@@ -3,14 +3,16 @@ import { Question, MCQQuestion, MatchQuestion, PassageQuestion, QuestionPaperDat
 export function getQuestionEnText(q: Question): string {
   if ('question_en' in q && q.question_en) return q.question_en;
   if ('questionText' in q && q.questionText) return q.questionText;
-  if (q.type === 'passage') return q.title_en || 'Reading Comprehension';
+  if ('title_en' in q && q.title_en) return q.title_en;
+  if (q.type === 'passage') return (q as PassageQuestion).title_en || 'Reading Comprehension';
   return '';
 }
 
 export function getQuestionTaText(q: Question): string {
   if ('question_ta' in q && q.question_ta) return q.question_ta;
   if ('questionTamilText' in q && q.questionTamilText) return q.questionTamilText;
-  if (q.type === 'passage') return q.title_ta || 'படித்துப் புரிதல்';
+  if ('title_ta' in q && q.title_ta) return q.title_ta;
+  if (q.type === 'passage') return (q as PassageQuestion).title_ta || 'படித்துப் புரிதல்';
   return '';
 }
 
@@ -27,11 +29,22 @@ export function getMCQOptionsTa(q: MCQQuestion): string[] {
 }
 
 export function isMatchQuestion(q: Question): q is MatchQuestion {
-  return q.type === 'match' || ('leftItems' in q && 'rightItems' in q);
+  return (
+    q.type === 'match' ||
+    q.type === 'match_following' ||
+    (q as any).questionType === 'match_following' ||
+    (q as any).questionType === 'match' ||
+    ('leftItems' in q && 'rightItems' in q) ||
+    ('leftColumn' in q && 'rightColumn' in q)
+  );
 }
 
 export function isPassageQuestion(q: Question): q is PassageQuestion {
-  return q.type === 'passage' || ('passage_en' in q && Array.isArray((q as any).questions));
+  return (
+    (q.type === 'passage' || (q as any).questionType === 'passage') &&
+    Array.isArray((q as any).questions) &&
+    (q as any).questions.length > 0
+  );
 }
 
 export function isMCQQuestion(q: Question): q is MCQQuestion {
@@ -39,8 +52,6 @@ export function isMCQQuestion(q: Question): q is MCQQuestion {
 }
 
 export function flattenQuestionsForExam(questions: Question[]): Question[] {
-  // If an exam engine requires 1 question per view, passage subquestions can be grouped or kept together.
-  // Here we return questions list intact.
   return questions;
 }
 

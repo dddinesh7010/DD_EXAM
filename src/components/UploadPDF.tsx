@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play, ExternalLink } from 'lucide-react';
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, X, HelpCircle, Brain, Eye, EyeOff, Save, Database, Trash2, FolderOpen, Download, FileJson, UploadCloud, Play, ExternalLink, Code2 } from 'lucide-react';
 import { Question } from '../types';
 import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
-import { parseQuestionsFromCSV } from '../utils/csvQuestionParser';
+import SampleJSONModal from './SampleJSONModal';
+import { downloadSampleJSONFile } from '../data/sampleExamJSON';
 
 interface SavedPDF {
   id: string;
@@ -248,6 +249,8 @@ export default function UploadPDF({
     URL.revokeObjectURL(url);
   };
 
+  const [showSampleModal, setShowSampleModal] = useState(false);
+
   const handleImportJSON = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -280,40 +283,6 @@ export default function UploadPDF({
       } catch (err: any) {
         console.error('Error importing JSON:', err);
         setAnalysisError(`Failed to import JSON: ${err.message}`);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleImportCSV = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const csvText = e.target?.result as string;
-        const parsedResult = parseQuestionsFromCSV(csvText, file.name);
-        const {
-          questions: sanitizedQuestions,
-          title: parsedTitle,
-          pdfName: parsedPdfName,
-          timeLimit: parsedTimeLimit
-        } = parsedResult;
-
-        setJsonFile(file);
-        setJsonQuestions(sanitizedQuestions);
-        setJsonTitle(parsedTitle);
-        setJsonPdfName(parsedPdfName);
-        setJsonTimeLimit(parsedTimeLimit);
-
-        const defaultCountLimit = sanitizedQuestions.length >= 50 ? 50 : sanitizedQuestions.length;
-        setJsonCount(defaultCountLimit);
-        setJsonDifficulty('Mixed');
-        setSuccessMessage(`CSV Question File "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully loaded! Set questions and difficulty to start the CBT.`);
-        setAnalysisError(null);
-        setTimeout(() => setSuccessMessage(null), 4000);
-
-      } catch (err: any) {
-        console.error('Error importing CSV:', err);
-        setAnalysisError(`Failed to import CSV: ${err.message}`);
       }
     };
     reader.readAsText(file);
@@ -528,7 +497,7 @@ export default function UploadPDF({
   };
 
   const validateAndSetFile = (file: File) => {
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       if (file.size > 25 * 1024 * 1024) {
         setAnalysisError('File is too large. Max size supported is 25MB.');
         setPdfFile(null);
@@ -551,10 +520,8 @@ export default function UploadPDF({
       }
     } else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
       handleImportJSON(file);
-    } else if (file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv')) {
-      handleImportCSV(file);
     } else {
-      setAnalysisError('Invalid file type. Please upload a valid PDF document, CSV file, or Exam Configuration JSON.');
+      setAnalysisError('Invalid file type. Please upload a valid PDF document or standard Exam JSON file.');
       setPdfFile(null);
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
@@ -664,16 +631,39 @@ export default function UploadPDF({
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" id="upload-pdf-card">
-      <div className="border-b border-gray-200 p-5 bg-gray-50/50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-600 animate-pulse" />
-          <h3 className="font-sans font-bold text-gray-800 text-sm uppercase tracking-wider">
-            Syllabus PDF Analyzer & Exam Builder
-          </h3>
+      <div className="border-b border-gray-200 p-4 sm:p-5 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Sparkles className="w-5 h-5 text-indigo-600 animate-pulse shrink-0" />
+          <div>
+            <h3 className="font-sans font-bold text-gray-800 text-sm uppercase tracking-wider">
+              Syllabus PDF Analyzer & JSON Exam Builder
+            </h3>
+            <p className="text-[10px] text-gray-400 font-medium">
+              Upload PDF for AI analysis or import standard 7-format bilingual JSON files
+            </p>
+          </div>
         </div>
-        <span className="text-[10px] text-gray-400 font-mono tracking-widest font-bold bg-white border border-gray-200 px-2 py-0.5 rounded">
-          GEMINI 3.5 FLASH
-        </span>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSampleModal(true)}
+            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="View the 7 supported question formats (Normal MCQ, Match, Passage, True/False, Fill in Blank, Statement, Assertion & Reason)"
+          >
+            <Code2 className="w-3.5 h-3.5" />
+            Sample JSON Format
+          </button>
+          <button
+            type="button"
+            onClick={downloadSampleJSONFile}
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Download ready-to-use sample_exam_questions.json template"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            Download JSON
+          </button>
+        </div>
       </div>
 
       <div className="p-6">
@@ -1202,8 +1192,22 @@ export default function UploadPDF({
           </div>
         )}
 
-
-
+        {/* Professional Sample JSON Viewer & Documentation Modal */}
+        <SampleJSONModal
+          isOpen={showSampleModal}
+          onClose={() => setShowSampleModal(false)}
+          onUseSample={(sampleQuestions, sampleTitle) => {
+            setJsonFile(null);
+            setJsonQuestions(sampleQuestions);
+            setJsonTitle(sampleTitle);
+            setJsonPdfName('Sample Exam (7 Types)');
+            setJsonTimeLimit(180);
+            setJsonCount(sampleQuestions.length);
+            setJsonDifficulty('Mixed');
+            setSuccessMessage(`Loaded "${sampleTitle}" with all 7 question formats into the CBT simulator!`);
+            setShowSampleModal(false);
+          }}
+        />
 
       </div>
     </div>

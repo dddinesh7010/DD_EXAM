@@ -4,7 +4,22 @@ export interface User {
   name: string;
 }
 
-export type QuestionType = 'mcq' | 'match' | 'passage';
+export type QuestionType = 
+  | 'mcq' 
+  | 'match_following' 
+  | 'match' 
+  | 'passage_mcq' 
+  | 'passage' 
+  | 'true_false' 
+  | 'fill_blank' 
+  | 'statement_based' 
+  | 'assertion_reason';
+
+export interface MatchColumnItem {
+  id: string;
+  text: string;
+  tamilText?: string;
+}
 
 export interface MatchItem {
   id: string;
@@ -13,67 +28,99 @@ export interface MatchItem {
 }
 
 export interface MatchQuestion {
-  id: string;
-  type: 'match';
-  question_en: string;
+  id: string | number;
+  type: 'match' | 'match_following';
+  questionType?: 'match' | 'match_following';
+  question_en?: string;
   question_ta?: string;
+  questionText?: string;
+  questionTamilText?: string;
   displayMode?: 'interactive' | 'static' | string;
   interactionType?: 'dropdown' | 'drag' | 'line' | string;
   leftItems: MatchItem[];
   rightItems: MatchItem[];
-  correctAnswer: { [leftId: string]: string }; // e.g. { "A": "3", "B": "2", "C": "1", "D": "4" }
+  leftColumn?: MatchColumnItem[];
+  rightColumn?: MatchColumnItem[];
+  correctAnswer: { [leftId: string]: string }; // e.g. { "A": "2", "B": "1", "C": "3", "D": "4" }
+  correctMatches?: { [leftId: string]: string };
   marks?: number;
   negativeMarks?: number;
-  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | 'Medium' | string;
   year?: string;
   topic?: string;
   explanation_en?: string;
   explanation_ta?: string;
-  // Legacy compatibility getters/fields if needed
-  questionText?: string;
-  questionTamilText?: string;
+  explanation?: string;
+  tamilExplanation?: string;
   correctOptionIndex?: number;
 }
 
 export interface MCQQuestion {
-  id: string;
-  type?: 'mcq';
+  id: string | number;
+  type?: QuestionType;
+  questionType?: QuestionType;
   question_en?: string;
   question_ta?: string;
+  questionText?: string;
+  questionTamilText?: string;
   options_en?: string[];
   options_ta?: string[];
+  options?: string[];
+  tamilOptions?: string[];
   correctOptionIndex?: number;
   correctAnswer_en?: string;
   correctAnswer_ta?: string;
   marks?: number;
   negativeMarks?: number;
-  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | 'Medium' | string;
   year?: string;
   topic?: string;
   explanation_en?: string;
   explanation_ta?: string;
-  // Legacy compatibility fields
-  questionText?: string;
-  questionTamilText?: string;
-  options?: string[];
-  tamilOptions?: string[];
   explanation?: string;
   tamilExplanation?: string;
+  
+  // Specific format extensions
+  passage?: string;
+  passageTamilText?: string;
+  statements?: string[];
+  tamilStatements?: string[];
+  assertion?: string;
+  assertionTamilText?: string;
+  reason?: string;
+  reasonTamilText?: string;
 }
 
 export interface PassageQuestion {
-  id: string;
-  type: 'passage';
-  title_en: string;
+  id: string | number;
+  type: 'passage' | 'passage_mcq';
+  questionType?: 'passage' | 'passage_mcq';
+  title_en?: string;
   title_ta?: string;
   layout?: 'split' | 'stacked' | string;
   stickyPassage?: boolean;
-  passage_en: string;
+  passage_en?: string;
   passage_ta?: string;
-  questions: MCQQuestion[];
+  passage?: string;
+  passageTamilText?: string;
+  questions?: MCQQuestion[];
+  // For single passage_mcq question items
+  questionText?: string;
+  questionTamilText?: string;
+  question_en?: string;
+  question_ta?: string;
+  options?: string[];
+  tamilOptions?: string[];
+  options_en?: string[];
+  options_ta?: string[];
+  correctOptionIndex?: number;
+  explanation?: string;
+  tamilExplanation?: string;
+  explanation_en?: string;
+  explanation_ta?: string;
   marks?: number;
   negativeMarks?: number;
-  difficulty?: 'Easy' | 'Moderate' | 'Hard' | string;
+  difficulty?: 'Easy' | 'Moderate' | 'Hard' | 'Medium' | string;
   year?: string;
   topic?: string;
 }

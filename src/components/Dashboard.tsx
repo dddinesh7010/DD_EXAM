@@ -2,14 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BookOpen, Brain, Clock, ChevronRight, Award, Trash2, HelpCircle, 
   FileText, Sparkles, ArrowLeft, Check, SlidersHorizontal, Filter, Play, Info,
-  Database, Download, Server, RefreshCw, Edit2, FileJson, AlertCircle, CheckCircle2, Upload
+  Database, Download, Server, RefreshCw, Edit2, FileJson, AlertCircle, CheckCircle2, Upload, Code2
 } from 'lucide-react';
 import { Question, ExamHistoryLog, User, QuestionPaperData } from '../types';
 import UploadPDF from './UploadPDF';
+import SampleJSONModal from './SampleJSONModal';
 import { CCSEIVGT_2025_PAPER } from '../data/defaultQuestions';
 import { getPendingSyncResults, syncPendingResults } from '../utils/offlineManager';
 import { parseQuestionsFromJSON } from '../utils/jsonQuestionParser';
-import { parseQuestionsFromCSV } from '../utils/csvQuestionParser';
+import { downloadSampleJSONFile } from '../data/sampleExamJSON';
 import { calculateTotalMarks } from '../utils/questionHelpers';
 
 interface DashboardProps {
@@ -126,6 +127,8 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
     }
   };
 
+  const [showHubSampleModal, setShowHubSampleModal] = useState(false);
+
   const handleUploadFileToMongo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -134,28 +137,17 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
     setMongoUploadError(null);
     setMongoUploadSuccess(null);
 
-    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const fileContent = event.target?.result as string;
-        let parsedResult;
-        let sourceName = 'JSON Hub Upload';
-
-        if (isCsv) {
-          parsedResult = parseQuestionsFromCSV(fileContent, file.name);
-          sourceName = 'CSV Hub Upload';
-        } else {
-          const json = JSON.parse(fileContent);
-          parsedResult = parseQuestionsFromJSON(json, file.name);
-          sourceName = 'JSON Hub Upload';
-        }
+        const json = JSON.parse(fileContent);
+        const parsedResult = parseQuestionsFromJSON(json, file.name);
 
         const { questions: sanitizedQuestions, title: parsedTitle, difficulty: parsedDifficulty } = parsedResult;
 
         if (sanitizedQuestions.length === 0) {
-          throw new Error('No valid questions found in the file.');
+          throw new Error('No valid questions found in the JSON file.');
         }
 
         // Save to MongoDB via save-question-paper endpoint
@@ -168,14 +160,13 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
             difficulty: parsedDifficulty,
             count: sanitizedQuestions.length,
             questions: sanitizedQuestions,
-            source: sourceName
+            source: 'JSON Hub Upload'
           })
         });
 
         const data = await res.json();
         if (data.success) {
-          const fileTypeLabel = isCsv ? 'CSV' : 'JSON';
-          setMongoUploadSuccess(`${fileTypeLabel} configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully saved to MongoDB!`);
+          setMongoUploadSuccess(`JSON configuration "${parsedTitle}" (${sanitizedQuestions.length} questions) successfully saved to MongoDB!`);
           fetchDbData();
           setTimeout(() => setMongoUploadSuccess(null), 4000);
         } else {
@@ -184,31 +175,13 @@ export default function Dashboard({ history, onStartExam, onViewHistoryDetails, 
 
       } catch (err: any) {
         console.error('Error uploading file to MongoDB:', err);
-        setMongoUploadError(`Import Error: ${err.message || String(err)}`);
+        setMongoUploadError(`JSON Import Error: ${err.message || String(err)}`);
         setTimeout(() => setMongoUploadError(null), 6000);
       }
     };
 
     reader.readAsText(file);
     e.target.value = '';
-  };
-
-  const handleDownloadSampleCsv = () => {
-    const sampleCsvContent = `parent_id,id,type,question_en,question_ta,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ta,option_b_ta,option_c_ta,option_d_ta,left_a_en,left_a_ta,left_b_en,left_b_ta,left_c_en,left_c_ta,left_d_en,left_d_ta,right_1_en,right_1_ta,right_2_en,right_2_ta,right_3_en,right_3_ta,right_4_en,right_4_ta,answer_a,answer_b,answer_c,answer_d,correct_option_index,correct_answer_en,correct_answer_ta,marks,negative_marks,difficulty,year
-,q1,mcq,"What is the capital of Tamil Nadu?","தமிழ்நாட்டின் தலைநகரம் எது?","Chennai","Madurai","Coimbatore","Trichy","சென்னை","மதுரை","கோயம்புத்தூர்","திருச்சி",,,,,,,,,,,,,,,,0,"Chennai is the capital and largest city of Tamil Nadu.","சென்னை தமிழ்நாட்டின் தலைநகரமாகும்.",2,0.25,Easy,2024
-,q2,match,"Match the types of finite verbs:","பின்வருவனவற்றைப் பொருத்துக:",,,,,,,,,"Transitive","செயப்படுபொருள் குன்றா","Intransitive","செயப்படுபொருள் குன்றிய","Auxiliary","துணைவினை","Modal","தகுதிவினை","Action Verb","செயல் வினை","State Verb","நிலை வினை","Helping Verb","உதவி வினை","Main Verb","முதன்மை வினை",3,1,4,2,,"Transitive connects directly, Intransitive does not.","செயப்படுபொருள் குன்றா வினை நேரடியாக இணைகிறது.",2,0.25,Moderate,2024
-,p1,passage,"Read the passage carefully: Tamil Nadu has a rich heritage of literature spanning over two millennia.","பத்தியைப் படிக்கவும்: தமிழ்நாடு இரண்டு ஆயிரங்களுக்கும் மேற்பட்ட ஆண்டுகள் பழமையான இலக்கிய மரபைக் கொண்டுள்ளது.",,,,,,,,,,,,,,,,,,,,,,,,,,,,2,0.25,Moderate,2024
-p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்நாட்டின் இலக்கிய மரபு எத்தனை ஆண்டுகள் பழமையானது?","500 years","1000 years","Over 2000 years","5000 years","500 ஆண்டுகள்","1000 ஆண்டுகள்","2000 ஆண்டுகளுக்கும் மேல்","5000 ஆண்டுகள்",,,,,,,,,,,,,,,,2,"Literature spans over two millennia (2000 years).","இலக்கியம் 2000 ஆண்டுகளுக்கும் மேலானது.",2,0.25,Easy,2024`;
-
-    const blob = new Blob([sampleCsvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'sample_exam_questions.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const [showUriConfig, setShowUriConfig] = useState(false);
@@ -882,26 +855,36 @@ p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்ந�
                     MongoDB Full-Stack Database Hub
                   </h2>
                   <p className="text-[10px] text-gray-400 font-medium">
-                    Manage persistent examination records, CSV/JSON question sets, and PDF papers
+                    Manage persistent examination records, 7-format JSON question banks, and AI PDF extractions
                   </p>
                 </div>
               </div>
               
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={handleDownloadSampleCsv}
+                  type="button"
+                  onClick={() => setShowHubSampleModal(true)}
+                  className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-bold"
+                  title="View the 7 supported question formats (Normal MCQ, Match, Passage, True/False, Fill in Blank, Statement, Assertion & Reason)"
+                >
+                  <Code2 className="w-3.5 h-3.5 shrink-0" />
+                  Sample JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadSampleJSONFile}
                   className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-bold"
-                  title="Download a template CSV file for formatting exam questions"
+                  title="Download a template JSON file with all 7 question formats"
                 >
                   <Download className="w-3.5 h-3.5 shrink-0" />
-                  Sample CSV
+                  Download JSON
                 </button>
                 <label className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-bold">
                   <Upload className="w-3.5 h-3.5 shrink-0" />
-                  Upload CSV / JSON
+                  Upload JSON
                   <input
                     type="file"
-                    accept=".csv,.json"
+                    accept=".json,application/json"
                     onChange={handleUploadFileToMongo}
                     className="hidden"
                   />
@@ -1215,6 +1198,16 @@ p1,p1_q1,mcq,"How old is Tamil Nadu's literature heritage?","தமிழ்ந�
           </div>
         </div>
       </div>
+
+      {/* Database Hub Sample JSON Modal */}
+      <SampleJSONModal
+        isOpen={showHubSampleModal}
+        onClose={() => setShowHubSampleModal(false)}
+        onUseSample={(sampleQuestions, sampleTitle) => {
+          handleInterceptStartExam(sampleQuestions, sampleTitle, sampleQuestions.length * 60);
+          setShowHubSampleModal(false);
+        }}
+      />
     </div>
   </div>
 );
