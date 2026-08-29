@@ -765,27 +765,41 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         {getQuestionEnText(currentQuestion)}
                       </h3>
 
-                      {/* Assertion & Reason Dedicated English Blocks */}
+                      {/* Assertion & Reason Dedicated English Blocks: side-by-side on md+ screens, vertical stack on mobile */}
                       {Boolean((currentQuestion as any).assertion || (currentQuestion as any).reason) && (
-                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                        <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
                           {(currentQuestion as any).assertion && (
-                            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded font-mono">
-                                Assertion (A)
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed">
-                                {(currentQuestion as any).assertion}
-                              </p>
+                            <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-xl p-4 space-y-2 shadow-2xs flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-1.5 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md font-mono">
+                                    Assertion (A)
+                                  </span>
+                                  <span className="text-[9px] font-bold text-indigo-600 bg-white/90 px-1.5 py-0.5 rounded border border-indigo-200/80">
+                                    Statement
+                                  </span>
+                                </div>
+                                <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed">
+                                  {(currentQuestion as any).assertion}
+                                </p>
+                              </div>
                             </div>
                           )}
                           {(currentQuestion as any).reason && (
-                            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono">
-                                Reason (R)
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed">
-                                {(currentQuestion as any).reason}
-                              </p>
+                            <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-4 space-y-2 shadow-2xs flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-center justify-between gap-2 border-b border-amber-200/60 pb-1.5 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md font-mono">
+                                    Reason (R)
+                                  </span>
+                                  <span className="text-[9px] font-bold text-amber-600 bg-white/90 px-1.5 py-0.5 rounded border border-amber-200/80">
+                                    Explanation
+                                  </span>
+                                </div>
+                                <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed">
+                                  {(currentQuestion as any).reason}
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -888,27 +902,41 @@ export default function ExamEngine({ session, settings, onUpdateSession, onSubmi
                         {getQuestionTaText(currentQuestion) || getQuestionEnText(currentQuestion)}
                       </h3>
 
-                      {/* Assertion & Reason Dedicated Tamil Blocks */}
+                      {/* Assertion & Reason Dedicated Tamil Blocks: side-by-side on md+ screens, vertical stack on mobile */}
                       {Boolean((currentQuestion as any).assertion || (currentQuestion as any).assertionTamilText || (currentQuestion as any).reason || (currentQuestion as any).reasonTamilText) && (
-                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                        <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
                           {((currentQuestion as any).assertionTamilText || (currentQuestion as any).assertion) && (
-                            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded font-mono">
-                                கூற்று (A)
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed font-sans">
-                                {(currentQuestion as any).assertionTamilText || (currentQuestion as any).assertion}
-                              </p>
+                            <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-xl p-4 space-y-2 shadow-2xs flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-1.5 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md font-mono">
+                                    கூற்று (A)
+                                  </span>
+                                  <span className="text-[9px] font-bold text-indigo-600 bg-white/90 px-1.5 py-0.5 rounded border border-indigo-200/80">
+                                    கூற்று
+                                  </span>
+                                </div>
+                                <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed font-sans">
+                                  {(currentQuestion as any).assertionTamilText || (currentQuestion as any).assertion}
+                                </p>
+                              </div>
                             </div>
                           )}
                           {((currentQuestion as any).reasonTamilText || (currentQuestion as any).reason) && (
-                            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-1.5 shadow-2xs">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-mono">
-                                காரணம் (R)
-                              </span>
-                              <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed font-sans">
-                                {(currentQuestion as any).reasonTamilText || (currentQuestion as any).reason}
-                              </p>
+                            <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-4 space-y-2 shadow-2xs flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-center justify-between gap-2 border-b border-amber-200/60 pb-1.5 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md font-mono">
+                                    காரணம் (R)
+                                  </span>
+                                  <span className="text-[9px] font-bold text-amber-600 bg-white/90 px-1.5 py-0.5 rounded border border-amber-200/80">
+                                    விளக்கம்
+                                  </span>
+                                </div>
+                                <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed font-sans">
+                                  {(currentQuestion as any).reasonTamilText || (currentQuestion as any).reason}
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>

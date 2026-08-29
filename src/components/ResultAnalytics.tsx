@@ -424,31 +424,35 @@ export default function ResultAnalytics({ log, onReturnToDashboard, onRetakeExam
                         {activeReviewLang === 'English' ? qEn : (qTa || qEn)}
                       </h4>
 
-                      {/* Review Mode Assertion & Reason display */}
+                      {/* Review Mode Assertion & Reason display: side-by-side on md+ screens, vertical stack on mobile */}
                       {Boolean((q as any).assertion || (q as any).reason) && (
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
                           {((q as any).assertion || (q as any).assertionTamilText) && (
-                            <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-xl">
-                              <span className="text-[10px] font-black uppercase text-indigo-800 tracking-wider">
-                                {activeReviewLang === 'English' ? 'Assertion (A):' : 'கூற்று (A):'}
-                              </span>
-                              <p className="text-xs sm:text-sm font-bold text-indigo-950 mt-0.5">
-                                {activeReviewLang === 'English'
-                                  ? (q as any).assertion
-                                  : ((q as any).assertionTamilText || (q as any).assertion)}
-                              </p>
+                            <div className="p-3.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl flex flex-col justify-between">
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-indigo-800 tracking-wider">
+                                  {activeReviewLang === 'English' ? 'Assertion (A):' : 'கூற்று (A):'}
+                                </span>
+                                <p className="text-xs sm:text-sm font-bold text-indigo-950 mt-1 leading-relaxed">
+                                  {activeReviewLang === 'English'
+                                    ? (q as any).assertion
+                                    : ((q as any).assertionTamilText || (q as any).assertion)}
+                                </p>
+                              </div>
                             </div>
                           )}
                           {((q as any).reason || (q as any).reasonTamilText) && (
-                            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
-                              <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
-                                {activeReviewLang === 'English' ? 'Reason (R):' : 'காரணம் (R):'}
-                              </span>
-                              <p className="text-xs sm:text-sm font-bold text-amber-950 mt-0.5">
-                                {activeReviewLang === 'English'
-                                  ? (q as any).reason
-                                  : ((q as any).reasonTamilText || (q as any).reason)}
-                              </p>
+                            <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl flex flex-col justify-between">
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
+                                  {activeReviewLang === 'English' ? 'Reason (R):' : 'காரணம் (R):'}
+                                </span>
+                                <p className="text-xs sm:text-sm font-bold text-amber-950 mt-1 leading-relaxed">
+                                  {activeReviewLang === 'English'
+                                    ? (q as any).reason
+                                    : ((q as any).reasonTamilText || (q as any).reason)}
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>

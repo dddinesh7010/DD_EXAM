@@ -140,48 +140,58 @@ export const MCQQuestionView: React.FC<MCQQuestionViewProps> = ({
         )}
       </div>
 
-      {/* Dedicated Assertion & Reason Cards */}
+      {/* Dedicated Assertion & Reason Cards: Side-by-side on desktop/tablet (md:grid-cols-2), vertical stack on mobile (grid-cols-1) */}
       {(question.assertion || question.reason || question.assertionTamilText || question.reasonTamilText) && (
-        <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
           {/* Assertion (A) */}
           {(question.assertion || question.assertionTamilText) && (
-            <div className="bg-indigo-50/60 border border-indigo-200/90 rounded-2xl p-4 sm:p-5 space-y-2 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100/90 px-2.5 py-0.5 rounded-md font-mono">
-                  Assertion (A) / கூற்று (A)
-                </span>
+            <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-2">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-indigo-800 bg-indigo-100/90 px-2.5 py-0.5 rounded-md font-mono">
+                    Assertion (A) / கூற்று (A)
+                  </span>
+                  <span className="text-[10px] font-bold text-indigo-600 bg-white/90 px-2 py-0.5 rounded-full border border-indigo-200/80">
+                    Statement
+                  </span>
+                </div>
+                {(displayMode === 'english' || displayMode === 'bilingual') && question.assertion && (
+                  <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed">
+                    {question.assertion}
+                  </p>
+                )}
+                {(displayMode === 'tamil' || displayMode === 'bilingual') && question.assertionTamilText && (
+                  <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed font-sans pt-2 border-t border-indigo-200/50">
+                    {question.assertionTamilText}
+                  </p>
+                )}
               </div>
-              {(displayMode === 'english' || displayMode === 'bilingual') && question.assertion && (
-                <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed">
-                  {question.assertion}
-                </p>
-              )}
-              {(displayMode === 'tamil' || displayMode === 'bilingual') && question.assertionTamilText && (
-                <p className="text-sm sm:text-base font-bold text-indigo-950 leading-relaxed font-sans pt-1 border-t border-indigo-200/50">
-                  {question.assertionTamilText}
-                </p>
-              )}
             </div>
           )}
 
           {/* Reason (R) */}
           {(question.reason || question.reasonTamilText) && (
-            <div className="bg-amber-50/60 border border-amber-200/90 rounded-2xl p-4 sm:p-5 space-y-2 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-black uppercase tracking-widest text-amber-800 bg-amber-100/90 px-2.5 py-0.5 rounded-md font-mono">
-                  Reason (R) / காரணம் (R)
-                </span>
+            <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-amber-800 bg-amber-100/90 px-2.5 py-0.5 rounded-md font-mono">
+                    Reason (R) / காரணம் (R)
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-600 bg-white/90 px-2 py-0.5 rounded-full border border-amber-200/80">
+                    Explanation
+                  </span>
+                </div>
+                {(displayMode === 'english' || displayMode === 'bilingual') && question.reason && (
+                  <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed">
+                    {question.reason}
+                  </p>
+                )}
+                {(displayMode === 'tamil' || displayMode === 'bilingual') && question.reasonTamilText && (
+                  <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed font-sans pt-2 border-t border-amber-200/50">
+                    {question.reasonTamilText}
+                  </p>
+                )}
               </div>
-              {(displayMode === 'english' || displayMode === 'bilingual') && question.reason && (
-                <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed">
-                  {question.reason}
-                </p>
-              )}
-              {(displayMode === 'tamil' || displayMode === 'bilingual') && question.reasonTamilText && (
-                <p className="text-sm sm:text-base font-bold text-amber-950 leading-relaxed font-sans pt-1 border-t border-amber-200/50">
-                  {question.reasonTamilText}
-                </p>
-              )}
             </div>
           )}
         </div>
